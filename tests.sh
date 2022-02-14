@@ -14,7 +14,7 @@ trap "cleanup" SIGINT
 trap "cleanup" EXIT
 
 echos "echos () plain"
-echos "${GREEN}echos () colored ${NORMAL}; setting QUIET" +
+echos "${color[green]}echos () colored ${color[default]}; setting QUIET" +
 QUIET="true"
 echos "QUIET is ${QUIET}" 
 echos "QUIET is ${QUIET}" +; echos ""
@@ -85,5 +85,16 @@ echo "ssh-git-account ssh-load-keys ssh-check-agent ssh-start-agent"
 cmd "git-update-main"
 
 cmd "ssh-ping ${SSH_HOST} 1 2"
+
+echo "This command applys multiple profiles and runs these functions:"
+echo "ssh-load-keys ssh-check-agent ssh-start-agent"
+echo "aws-apply-profile aws-load aws-assume-role aws-save aws-extract-role-arn"
+echo "kube-profile vault-profile"
+cmd "mad-assume corp"; echos ""
+PODS=$(kube-safe-apply -n shared get pods --no-headers | head -n 2 | awk '{print $1}')
+kube-pods-top $(echo $PODS | awk '{print $2}') "shared"
+
+
+
 
 cleanup

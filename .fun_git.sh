@@ -1,8 +1,7 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
-UTILITIES+=("echo" "awk" "grep" "rev" "git" "cut" )
+UTILITIES+=("echo" "awk" "grep" "rev" "git" "cut" "gh")
 
 # Gives details on functions in this file
 # Call with a function's name for more information
@@ -11,14 +10,14 @@ git-help () {
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^git-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful git functions."
-    echo "For more details: ${GREEN}git-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}git-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,7 +30,7 @@ git-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 # PS1 output for git profile
@@ -39,13 +38,13 @@ git-ps1-color () {
   local main=$(git-origin 2>/dev/null)
   if [[ ! "${main}" ]]; then return; fi
   local branch=$(git rev-parse --abbrev-ref HEAD)
-  echo -e -n "(${LIGHTMAGENTA}git${GRAY}["
+  echo -e -n "(${color[lightmagenta]}git${color[gray]}["
   if [[ "${branch}" == "${main}" ]]; then 
-    echo -e -n "${RED}${branch}${GRAY}"
+    echo -e -n "${color[red]}${branch}${color[gray]}"
   else
-    echo -e -n "${NORMAL}${branch}${GRAY}"
+    echo -e -n "${color[default]}${branch}${color[gray]}"
   fi
-  echo -e "]${DARKGRAY})-"
+  echo -e "]${color[darkgray]})-"
 }
 
 # Pulls the current git repo.
@@ -77,13 +76,13 @@ git-call () {
   local dir="${2:-${active_dir}}"
   local function="${1}"
   if [ ! -d "${dir}/.git" ]; then return 1; fi
-  cd "${dir}"
+  pushd "${dir}"
   local account="$(git config --get remote.origin.url | grep -o -P '(?<=:).*?(?=/)')"
   ssh-git-account "${account}"
   local value="$(eval ${function})"
   local code=$?
   if [ ! -z "${value}" ]; then echo "${value}"; else return ${code}; fi
-  cd "${active_dir}"
+  popd "${active_dir}"
 }
 
 # Update cached main branch for specified repo
@@ -108,6 +107,23 @@ git-update-main () {
     echo -e "\nRepo: ${d}"
     git-latest-main ${d}
   done
+}
+
+git-clone-all () {
+  local owner="${1}"
+  if [ -z "${owner}" ]; then return 1; fi
+  if [ -n "$(shell-utilities 'gh' 'git' )" ]; then return 1; fi
+  if [ ! -d "${GITHOME}/${owner}" ]; then mkdir -p "${GITHOME}/${owner}"; fi
+  pushd "${GITHOME}/${owner}" > /dev/null
+  local repos=($(gh repo list "${owner}" | awk '{print $1}' ))
+  for repo in "${repos[@]}"; do
+    if [ ! -d "${GITHOME}/${repo}" ]; then 
+      git clone git@github.com:${repo}.git
+    else
+      echo "${GITHOME}/${repo} already exists"
+    fi
+  done
+  popd > /dev/null
 }
 
 alias gitpull='git-call git-pull'

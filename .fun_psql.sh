@@ -1,6 +1,5 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("echo" "awk" "grep" "cat" "psql" "vault")
 
@@ -11,14 +10,14 @@ psql-help () {
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^psql-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful Postgres functions."
-    echo "For more details: ${GREEN}psql-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}psql-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,7 +30,7 @@ psql-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 # Create User for DB permissions if it doesnt exist

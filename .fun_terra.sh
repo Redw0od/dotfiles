@@ -1,6 +1,5 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("echo" "awk" "grep" "cat" "terraform" "terragrunt" "brew" )
 
@@ -11,14 +10,14 @@ tg-help () {
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^tg-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful Terraform functions."
-    echo "For more details: ${GREEN}tg-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}tg-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,7 +30,7 @@ tg-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 # Set module source var for local modules

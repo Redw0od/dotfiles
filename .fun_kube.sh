@@ -1,24 +1,24 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("echo" "awk" "grep" "cat" "kubectl" "pkill" "printf" "base64" "jq" "curl" "wget")
 
 # Gives details on functions in this file
 # Call with a function's name for more information
+# kube-help [kube-function]
 kube-help () {
   local func="${1}"
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^kube-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful kubernetes functions."
-    echo "For more details: ${GREEN}kube-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}kube-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,49 +31,52 @@ kube-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 # PS1 output for Kubernets Context
 kube-ps1-color () {
   case "${KUBE_ENV}" in
     gov)
-      echo -e "${ORANGE}${KUBE_ENV}${NORMAL}"
+      echo -e "${ORANGE}${KUBE_ENV}${color[default]}"
       ;;
     dev)
-      echo -e "${YELLOW}${KUBE_ENV}${NORMAL}"
+      echo -e "${color[yellow]}${KUBE_ENV}${color[default]}"
       ;;
     corp)
-      echo -e "${GRAY}${KUBE_ENV}${NORMAL}"
+      echo -e "${color[gray]}${KUBE_ENV}${color[default]}"
       ;;
     *)
-      echo -e "${RED}${BOLD}${KUBE_ENV}${NORMAL}"
+      echo -e "${color[red]}${BOLD}${KUBE_ENV}${color[default]}"
       ;;
   esac
 }
 
 # Change kubernetes context and update session variables
+# kube-profile [cluster name]
 kube-profile () {
+  local cluster_name="${1}"
    export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
-   case "$1" in
+   case "${cluster_name}" in
        prod)
-           export KOPS_CLUSTER_NAME=${KUBE[PRODCLUSTER]}
+           export KOPS_CLUSTER_NAME=${KUBE[PROD_CLUSTER]}
            kubectl config use-context PRODCLUSTER
            ;;
        dev)
-           export KOPS_CLUSTER_NAME=${KUBE[DEVCLUSTER]}
+           export KOPS_CLUSTER_NAME=${KUBE[DEV_CLUSTER]}
            kubectl config use-context DEVCLUSTER
            ;;
        *)
-           export KOPS_CLUSTER_NAME=${KUBE[${1}]}
-           kubectl config use-context ${1}
+           export KOPS_CLUSTER_NAME=${KUBE[${cluster_name}]}
+           kubectl config use-context ${cluster_name}
            ;;
    esac
-   export KUBE_ENV="${1}"
+   export KUBE_ENV="${cluster_name}"
    echo "Current k8s Context: $(kubectl config current-context)" 
 }
 
 # Port forward rabbit-mq and display connection details
+# kube-forward-rabbit <k8s namespace> [k8s service name]
 kube-forward-rabbit () {
    local namespace=${1}
    local service=${2:-rabbitmq}
@@ -88,38 +91,55 @@ kube-stop () {
 }
 
 # Confirm all apply and deletes are against the correct cluster
+# kube-safe-apply <kubectl arguments>
 kube-safe-apply () {
   if [[ " ${@} " =~ "apply" ]] || [[ " ${@} " =~ "delete" ]]; then 
-    echo -e -n "Running on cluster: ${YELLOW_BG}$(echo $(kubectl config current-context)| awk '{print toupper($0)}')${NORMAL}, "
+    echo -e -n "Running on cluster: ${color[yellow_bg]}$(echo $(kubectl config current-context)| awk '{print toupper($0)}')${color[default]}, "
     read -p "continue? (y/n) " CONFIRM
-     [[ $CONFIRM != "y" ]] && echo "quit" && return
+     [ ${CONFIRM} != "y" ] && echo "quit" && return
   fi
   #kubectl $*
   kube-check-server-binary $*
 }
 
-# Report resource usage inside pods
+# Report resource usage inside pod
+# kube-pod-top <pod name> [namespace] [container] [header bool]
 kube-pod-top () {  
-  local nodes=${1}
+  local pod=${1}
+  local namespace="${2:+"-n ${2}"}"
+  local container="${3:+"-c ${3}"}"
+  local header="${4:-true}"
   local fmt="%6s %5s %7s %-12s\n"
-  local top=""
-  if [ ! -z "${nodes}" ]; then
-    printf "$fmt" "CPU" "Mem" "Process" "Node" 
-    for n in ${nodes}; do
-      top=$(kubectl -n shared exec $n -c elasticsearch -- top -b -n 1 | grep -A 1 PID | grep -v PID)
-      printf "$fmt" $(echo $top | awk '{print $9}') $(echo $top | awk '{print $10}')  $(echo $top | awk '{print $12}') ${n}
-    done
-  else 
-    echo "nodes: $nodes"
-  fi
+  if [ -z "${pod}" ]; then return 1; fi
+  if [ -n "$(shell-utilities 'kubectl' )" ]; then return 1; fi
+  if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi  
+  local top=$(kubectl ${namespace} exec "${pod}" ${container} -- top -b -n 1 2> /dev/null | grep -A 1 PID | grep -v PID) 
+  if [ $? != 0 ]; then echo "ERROR running top on ${namespace}:${pod}"; return; fi
+  printf "$fmt" $(echo $top | awk '{print $9}') $(echo $top | awk '{print $10}')  $(echo $top | awk '{print $12}') ${pod}
+}
+
+# Report resource usage inside pods
+# kube-pods-top < "${PODS[@]}" > [namespace] [container] [header bool]
+kube-pods-top () {  
+  local pods=${1}
+  local namespace=${2}
+  local container=${3}
+  local header="${4:-true}"
+  local fmt="%6s %5s %7s %-12s\n"
+  if [ -z "${pods}" ]; then return 1; fi
+  if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi  
+  for pod in ${pods}; do
+    kube-pod-top ${pod} "${namespace}" "${container}" "false"
+  done
 }
 
 # Access kubernetes secret for elasticsearch api keys
-# kube-es-key [secret] [namespace]
+# kube-es-key <secret> [namespace]
 kube-es-key () {
-  local keyname=${1}
-  local ns=${2:-shared}
-  local secret_json=$(kubectl -n ${ns} get secret ${keyname} -o json | jq .data)
+  local keyname="${1}"
+  local ns="-n ${2}"
+  if [ -z "${keyname}" ]; then return 1; fi
+  local secret_json=$(kubectl ${ns} get secret "${keyname}" -o json | jq .data)
   local api_key=$(echo ${secret_json} | jq -r .api_key | base64 --decode)
   local id=$(echo ${secret_json} | jq -r .id | base64 --decode)
   echo "${id}:${api_key}"
@@ -128,20 +148,18 @@ kube-es-key () {
 # Access kubernetes secret for elasticsearch user credentials
 # kube-es-creds [secret] [namespace]
 kube-es-creds () {
-  local keyname=${1}
-  local ns=${2:-shared}
-  local secret_json=$(kubectl -n ${ns} get secret ${keyname} -o json | jq .data)
+  local keyname="${1}"
+  local ns="-n ${2}"
+  if [ -z "${keyname}" ]; then return 1; fi
+  local secret_json=$(kubectl ${ns} get secret "${keyname}" -o json | jq .data)
   local user=$(echo ${secret_json} | jq -r .username | base64 --decode)
   local pass=$(echo ${secret_json} | jq -r .password | base64 --decode)
   echo "${user}:${pass}"
 }
-####### RDS FUNCTIONS
 
+# Check for new update to kubectl
 kube-check-binary () {
-  if [[ -z "$(which kubectl)" ]]; then
-    echo "install kubectl"
-    return 1
-  fi
+  if [ -n "$(shell-utilities 'kubectl' )" ]; then return 1; fi
   local version="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
   local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"  
   if [[ "${version}" != "${latest}" ]]; then
@@ -149,14 +167,22 @@ kube-check-binary () {
   fi
 }
 
+# Compare default kubectl version to k8s server version
+# Then attempt to download and run commands on matching versions
 kube-check-server-binary () {
-  local server="$(kubectl version -o json 2> /dev/null | jq -r '.serverVersion.gitVersion')"
+  local server="$(kubectl version -o json 2> /dev/null | jq -r '.serverVersion.gitVersion' | cut -d '-' -f 1)"
   local client="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
-  if [[ "${server}" != "${client}" ]]; then
-    if [[ ! "$(which kubectl${server})" ]]; then
+  if [ "${server}" != "${client}" ]; then
+    if [ ! "$(which kubectl${server})" ]; then
+      echo "Server version [${server}] mismatch client [${client}]"
       wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/linux/amd64/kubectl
-      chmod +x /tmp/kubectl
-      sudo mv /tmp/kubectl /usr/local/bin/kubectl${server}
+      if [ -f "/tmp/kubectl" ]; then
+        chmod +x /tmp/kubectl
+        sudo mv /tmp/kubectl /usr/local/bin/kubectl${server}
+      else
+        echo "Failed to download matching kubectl version. Using default"
+        kubectl $*
+      fi
     fi
     kubectl${server} $*
   else

@@ -1,6 +1,5 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("echo" "awk" "grep" "cat" "vault" "jq" "cut" "nc" )
 
@@ -11,14 +10,14 @@ vault-help () {
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^vault-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful vault functions."
-    echo "For more details: ${GREEN}vault-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}vault-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,7 +30,7 @@ vault-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 
@@ -39,13 +38,13 @@ vault-help () {
 vault-ps1-color () {
   case "${VAULT_PROFILE}" in
     gov)
-      echo -e "${ORANGE}${VAULT_PROFILE}${NORMAL}"
+      echo -e "${ORANGE}${VAULT_PROFILE}${color[default]}"
       ;;
     test)
-      echo -e "${GRAY}${VAULT_PROFILE}${NORMAL}"
+      echo -e "${color[gray]}${VAULT_PROFILE}${color[default]}"
       ;;
     *)
-      echo -e "${RED}${BOLD}${VAULT_PROFILE}${NORMAL}"
+      echo -e "${color[red]}${BOLD}${VAULT_PROFILE}${color[default]}"
       ;;
   esac
 }
@@ -104,6 +103,24 @@ vault-status-report () {
     vault-profile ${vault}
     nc -zv $(echo ${VAULTS[${vault}]} )
   done
+}
+
+vault-append-secret () {
+  local v_path="${1}"
+  local v_key="${2}"
+  local v_value="${3}"
+  local v_json="$(vault read -format json -field data ${v_path})"
+  local v_current="$(echo "${v_json}" | jq \"."${v_key}"\")"
+  if [ -n "${v_current}" ] && [ "${v_current}" != "${v_value}" ]; then
+    echo "Overwriting existing secret key: ${v_key}"    
+    read -p "continue? (y/n) " confirm
+    if [ "${confirm}" != "y" ] || [ "${confirm}" != "Y" ]; then
+      echo "quit" 
+      return
+    fi
+    echo "${json}" | jq ".${v_key} = \"${v_value}\""
+    echo "vault write ${v_path} -"
+  fi
 }
 
 # If you source this file directly, apply the overwrites.

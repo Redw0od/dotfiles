@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 iatest=$(expr index "$-" i)
-declare -A SOURCE
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+declare -A _source
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
+
 
 Time12a="\$(date +%H:%M)"
 PathShort="\w";
@@ -40,6 +40,10 @@ done
 if [ -f "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
+
+echo "Loaded shell files:"
+echo "${!_source[@]}"
+
 #######################################################
 # EXPORTS
 #######################################################
@@ -243,17 +247,16 @@ alias sha1='openssl sha1'
 # Set the ultimate amazing command prompt
 #######################################################
 
-PS1="\n${NORMAL}\$(lastCommandResult)\n\[${RED}\]${Time12a} \$(k8sColor) \[${BLUE}\]aws[\$(awsColor)]\[${GREEN}\] \w\n\[${MAGENTA}\]\u $ \[${NORMAL}\]"
+PS1="\n${color[default]}\$(lastCommandResult)\n\[${color[red]}\]${Time12a} \$(k8sColor) \[${color[blue]}\]aws[\$(awsColor)]\[${color[green]}\] \w\n\[${color[magenta]}\]\u $ \[${color[default]}\]"
 alias cpu="grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'"
 
-function __setprompt
-{
+__setprompt () {
 	local LAST_COMMAND=$? # Must come first!
 
 	# Show error exit code if there is one
 	if [ $LAST_COMMAND != 0 ]; then
-		# PS1="\[${RED}\](\[${LIGHTRED}\]ERROR\[${RED}\])-(\[${LIGHTRED}\]Exit Code \[${WHITE}\]${LAST_COMMAND}\[${RED}\])-(\[${LIGHTRED}\]"
-		PS1="${DARKGRAY}(${LIGHTRED}ERROR${DARKGRAY})-(${RED}Exit Code ${LIGHTRED}${LAST_COMMAND}${DARKGRAY})-(${RED}"
+		# PS1="\[${color[red]}\](\[${color[lightred]}\]ERROR\[${color[red]}\])-(\[${color[lightred]}\]Exit Code \[${color[white]}\]${LAST_COMMAND}\[${color[red]}\])-(\[${color[lightred]}\]"
+		PS1="${color[darkgray]}(${color[lightred]}ERROR${color[darkgray]})-(${color[red]}Exit Code ${color[lightred]}${LAST_COMMAND}${color[darkgray]})-(${color[red]}"
 		if [ $LAST_COMMAND == 1 ]; then
 			PS1+="General error"
 		elif [ $LAST_COMMAND == 2 ]; then
@@ -287,30 +290,30 @@ function __setprompt
 		else
 			PS1+="Unknown error code"
 		fi
-		PS1+="${DARKGRAY})${NOCOLOR}\n"
+		PS1+="${color[darkgray]})${color[default]}\n"
 	else
 		PS1=""
 	fi
 
 	# Date
-	PS1+="${DARKGRAY}($(set-color 196)$(date +%a) $(set-color 208)$(date +%b-'%-d')" # Date
-	PS1+=" $(set-color 220) $(date +'%-I':%M:%S%P)${DARKGRAY})-" # Time
+	PS1+="${color[darkgray]}($(set-color 196)$(date +%a) $(set-color 208)$(date +%b-'%-d')" # Date
+	PS1+=" $(set-color 220) $(date +'%-I':%M:%S%P)${color[darkgray]})-" # Time
 
 	# CPU
 	PS1+="($(set-color 112)CPU $(set-color 34)$(cpu)%"
 
 	# Jobs
-	PS1+="${DARKGRAY}:${GREEN}\j"
+	PS1+="${color[darkgray]}:${color[green]}\j"
 
 	# Network Connections (for a server - comment out for non-server)
-	# PS1+="\[${DARKGRAY}\]:\[${GREEN}\]Net $(awk 'END {print NR}' /proc/net/tcp)"
+	# PS1+="\[${color[darkgray]}\]:\[${color[green]}\]Net $(awk 'END {print NR}' /proc/net/tcp)"
 
-	PS1+="${DARKGRAY})-"
-	PS1+="($(set-color 24)vault${GRAY}[$(vault-ps1-color)${GRAY}]${DARKGRAY})-"
+	PS1+="${color[darkgray]})-"
+	PS1+="($(set-color 24)vault${color[gray]}[$(vault-ps1-color)${color[gray]}]${color[darkgray]})-"
 
-	PS1+="(${TEAL}aws${GRAY}[$(aws-ps1-color)${GRAY}]${DARKGRAY})-"
+	PS1+="(${color[teal]}aws${color[gray]}[$(aws-ps1-color)${color[gray]}]${color[darkgray]})-"
 
-	PS1+="(${BLUE}kube${GRAY}[$(kube-ps1-color)${GRAY}]${DARKGRAY})-"
+	PS1+="(${color[blue]}kube${color[gray]}[$(kube-ps1-color)${color[gray]}]${color[darkgray]})-"
 
 	#PS1+="$(git-ps1-color)"
 
@@ -319,36 +322,36 @@ function __setprompt
 	local SSH_IP=`echo $SSH_CLIENT | awk '{ print $1 }'`
 	local SSH2_IP=`echo $SSH2_CLIENT | awk '{ print $1 }'`
 	if [ $SSH2_IP ] || [ $SSH_IP ] ; then
-		PS1+="(${DARKBLUE}\u@\h"
+		PS1+="(${color[darkblue]}\u@\h"
 	else
-		PS1+="(${DARKBLUE}\u"
+		PS1+="(${color[darkblue]}\u"
 	fi
 
 	# Current directory
-	PS1+="${DARKGRAY}:${BLUE}\w${DARKGRAY})-"
+	PS1+="${color[darkgray]}:${color[blue]}\w${color[darkgray]})-"
 
 	# Total size of files in current directory
-	PS1+="(${BURGANDY}$(/bin/ls -lah | /bin/grep -m 1 total | /bin/sed 's/total //')${DARKGRAY}:"
+	PS1+="(${color[burgandy]}$(/bin/ls -lah | /bin/grep -m 1 total | /bin/sed 's/total //')${color[darkgray]}:"
 
 	# Number of files
-	PS1+="${PURPLE}$(/bin/ls -A -1 | /usr/bin/wc -l)${DARKGRAY})"
+	PS1+="${color[purple]}$(/bin/ls -A -1 | /usr/bin/wc -l)${color[darkgray]})"
 
 	# Skip to the next line
-	PS1+="${NOCOLOR}\n"
+	PS1+="${color[default]}\n"
 
 	if [ $EUID -ne 0 ]; then
-		PS1+="\[${GRAY}\]>\[${NOCOLOR}\] " # Normal user
+		PS1+="\[${color[gray]}\]>\[${color[default]}\] " # Normal user
 	else
-		PS1+="\[${RED}\]>\[${NOCOLOR}\] " # Root user
+		PS1+="\[${color[red]}\]>\[${color[default]}\] " # Root user
 	fi
 
 	# PS2 is used to continue a command using the \ character
-	PS2="\[${DARKGRAY}\]>\[${NOCOLOR}\] "
+	PS2="\[${color[darkgray]}\]>\[${color[default]}\] "
 
 	# PS3 is used to enter a number choice in a script
 	PS3='Please enter a number from above list: '
 
 	# PS4 is used for tracing a script in debug mode
-	PS4="${DARKGRAY}+${NOCOLOR} "
+	PS4="${color[darkgray]}+${color[default]} "
 }
 PROMPT_COMMAND='__setprompt'

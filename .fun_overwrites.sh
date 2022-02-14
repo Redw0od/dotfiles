@@ -1,6 +1,6 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+#!/usr/bin/env bash
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 ssh-git-account () {
   local account="${1}"
@@ -56,4 +56,16 @@ mad-assume () {
 			vault-profile ${name}
 			;;
    	esac
+}
+
+aws-mfa-token () {
+  local profile="${1}"
+  local token_code=""
+  case "${profile}" in
+    prod)
+      token_code="$(gauth | grep 'Prod Token' | awk '{print $4}')";;
+    dev)
+      token_code="$(gauth | grep 'Dev Token' | awk '{print $4}')";;
+  esac
+  echo "${token_code}"
 }

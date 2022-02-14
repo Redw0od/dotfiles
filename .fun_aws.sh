@@ -1,6 +1,5 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("aws" "echo" "awk" "grep" "date" "expr" "jq" "column" "base64" "cut" "rev" "sleep")
 
@@ -11,14 +10,14 @@ aws-help () {
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^aws-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful AWS functions."
-    echo "For more details: ${GREEN}aws-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}aws-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,7 +30,7 @@ aws-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 
@@ -39,13 +38,13 @@ aws-help () {
 aws-ps1-color () {
   case "${AWS_PROFILE}" in
     respond-prod)
-      echo -e "${RED}${BOLD}${AWS_PROFILE}${BLUE}"
+      echo -e "${color[red]}${BOLD}${AWS_PROFILE}${color[blue]}"
       ;;
     respond-dev)
-      echo -e "${YELLOW}${AWS_PROFILE}${BLUE}"
+      echo -e "${color[yellow]}${AWS_PROFILE}${color[blue]}"
       ;;
     *)
-      echo -e "${WHITE}${AWS_PROFILE}${BLUE}"
+      echo -e "${color[white]}${AWS_PROFILE}${color[blue]}"
       ;;
   esac
 }
@@ -84,7 +83,7 @@ aws-apply-profile () {
   echo "aws-apply-profile ${role} ${force}"
   aws-load ${role}
   if [ "${force}" = "-f" ]; then 
-    aws-assume-role ${role}
+    aws-expect ${role}
     aws-save ${role}
     return
   fi
@@ -92,8 +91,8 @@ aws-apply-profile () {
     echo "Session still valid for $(aws-session-time) seconds. Use -f to force refresh"
     return
   fi
-  aws-assume-role ${role}
-  aws-save ${role}
+  aws-expect ${role}
+  aws-load ${role}
 }
 
 
@@ -122,22 +121,88 @@ aws-extract-role-arn () {
   done
 }
 
-# Load aws profile and export session variables
+# Parse config file for mfa serial Arn of specific profile
 # Call function with aws profile name as argument
+aws-extract-mfa-arn () {
+  local profile="${1}"
+  local cred_file=${2:-"$HOME/.aws/config"}
+  local config=()
+  local save="false"
+  while read -r line; do
+    if [ ! -z "$(echo ${line} | grep '\[.*\]')" ]; then
+      save="false"
+    fi
+    if [ "${save}" = "true" ]; then
+      config+=("${line}")
+    fi
+    if [ ! -z "$(echo ${line} | grep ${profile}] )" ]; then
+      save="true"
+    fi
+  done < ${cred_file}
+  for a in "${config[@]}"; do
+    if [ ! -z "$(echo ${a} | grep -w 'mfa_serial')" ]; then
+      echo ${a} | cut -d "=" -f 2 | awk '{print $1}'
+    fi
+  done
+}
+
+
+aws-expect () {
+  local profile="${1}"
+  local token_code="$(aws-mfa-token ${profile})"
+  local mfa="$(aws-extract-mfa-arn ${profile})"
+  echo "set timeout -1
+ spawn /tmp/expect_aws_token.sh
+ match_max 100000
+ expect -exact \"Enter MFA code for ${mfa}: \"
+ send -- \"$token_code\\r\"
+ expect eof" > /tmp/expect_script.exp
+ chmod 777 /tmp/expect_script.exp
+  echo "#!/usr/bin/env bash
+  source $HOME/.profile
+  aws-assume-role $profile
+  aws-save ${profile}" > /tmp/expect_aws_token.sh
+ chmod 777 /tmp/expect_aws_token.sh
+
+ expect /tmp/expect_script.exp
+ aws-load ${profile}
+}
+
+
+# Load aws profile and export session variables
+# aws-assume-role <profile>
 aws-assume-role () {
   local profile="${1}"
   local arn="$(aws-extract-role-arn ${profile})"
-  local sts=""
+  local mfa="$(aws-extract-mfa-arn ${profile})"
+  local token_code="$(aws-mfa-token ${profile})"
+
+
+  echo "token: ${token_code}"
+  mfa="${mfa:+"--serial-number ${mfa}"}"
+  #token_code="${token_code:+"--token-code '${token_code}'"}"
   if [ ! -z "${arn}" ]; then
-    sts="$(aws sts assume-role --role-arn ${arn} \
-    --role-session-name stanton-${profile} \
-    --profile ${profile})"
+    cmd "sts=\"\$(aws sts assume-role --role-arn ${arn} --role-session-name stanton-${profile} --profile ${profile} )\""
   fi
   export AWS_SESSION_TOKEN="$(echo $sts | jq -r '.Credentials.SessionToken')"
   export AWS_SECURITY_TOKEN="$AWS_SESSION_TOKEN"
   export AWS_ACCESS_KEY_ID="$(echo $sts | jq -r '.Credentials.AccessKeyId')"
   export AWS_SECRET_ACCESS_KEY="$(echo $sts | jq -r '.Credentials.SecretAccessKey')"
   export AWS_PROFILE="${profile}"
+}
+
+# Generate MFA token and pass to awscli
+# aws-mfa-token <mfa profile>
+aws-mfa-token () {
+  local profile="${1}"
+  local token_code=""
+  case "${profile}" in
+    prod)
+      token_code="$(gauth | grep 'Prod Token' | awk '{print $4}')";;
+    dev)
+      token_code="$(gauth | grep 'Dev Token' | awk '{print $4}')";;
+  esac
+  echo "${token_code}"
 }
 
 # Display your current AWS identity

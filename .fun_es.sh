@@ -1,6 +1,5 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("echo" "awk" "grep" "cat" "curl" "base64" "tr" "printf" "wc" "sort" "kubectl" "pkill" "sleep")
 
@@ -11,14 +10,14 @@ es-help () {
   local func_names="$(cat ${BASH_SOURCE[0]} | grep '^es-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful Elasticsearch functions."
-    echo "For more details: ${GREEN}es-help [function]${NORMAL}"
+    echo "For more details: ${color[green]}es-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
   cat "${BASH_SOURCE[0]}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${GRAY} ${GREEN}
+      banner " function: $func " "" ${color[gray]} ${color[green]}
       echo -e "${comment}"
     fi
     if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
@@ -31,7 +30,7 @@ es-help () {
       comment=""
     fi
   done  
-  banner "" "" ${GRAY}
+  banner "" "" ${color[gray]}
 }
 
 # Curl Elasticsearch with API key
@@ -92,27 +91,25 @@ es-post () {
   curl -sk -XPOST ${eURL} -H "${H1}" -H "${H2}" -d "${eDATA}"
 }
 
-# Curl PUT Elasticsearch with API key
-# es-put-user [cluster] [api endpoint] [data]
+# Curl PUT Elasticsearch with User and Password
+# es-put-user [cluster] [api endpoint] [data] [user:pass]
 es-put-user () {
   local cluster="${1}"
   local endpoint="${2}"
   local eDATA="${3}"
   local AUTH="${4}"
-  local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
   curl -u "${AUTH}" -sk -XPUT ${eURL} -H "${H1}" -d "${eDATA}"
 }
 
-# Curl POST Elasticsearch with API key
-# es-post-user [cluster] [api endpoint] [data]
+# Curl POST Elasticsearch with User and Password
+# es-post-user [cluster] [api endpoint] [data] [user:pass]
 es-post-user () {
   local cluster="${1}"
   local endpoint="${2}"
   local eDATA="${3}"
   local AUTH="${4}"
-  local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
   curl -u "${AUTH}" -sk -XPOST ${eURL} -H "${H1}" -d "${eDATA}"
@@ -160,6 +157,49 @@ es-query-master () {
     echo "nodes: $nodes"
   fi
 }
+
+# Get a list of index templates that match a pattern
+# es-get-templates-names < CLUSTER_NAME > [index*]
+es-get-template-names () {
+  local cluster="${1}"
+  local pattern="${2}"
+  es-get "${cluster}" "/_cat/templates/${pattern}" | awk '{print $1}'  
+}
+
+# Get a current template json
+# TEMPLATES=$(es-query-templates ${CLUSTER_NAME} cases*)
+# es-get-template < CLUSTER_NAME > < template_name >
+es-get-template () {
+  local cluster="${1}"
+  local template="${2}"
+  es-get "${cluster}" "/_template/${template}"  
+}
+
+# Get a current templates lifecycle policy
+# for name in ${TEMPLATES[@]}; do es-get-template-lifecycle ${CLUSTER_NAME} "${name}" >> /tmp/${CLUSTER_NAME}-template-policies & done
+# es-get-template-lifecycle < CLUSTER_NAME > < template_name >
+es-get-template-lifecycle () {
+  local cluster="${1}"
+  local template="${2}"
+  local policy="$(es-get "${cluster}" "/_template/${template}" | jq -r '.[].settings.index.lifecycle.name' )"
+  echo "${policy} ${template}"
+}
+
+# Update an existing index template with preferred data tier
+# INDICES=$(cat /tmp/${CLUSTER_NAME}-template-policies | grep -v '^ ' | awk '{print $2}' | grep -v '^\.' | sort)
+# for name in ${INDICES[@]}; do es-set-template-tier ${CLUSTER_NAME} "${name}" ; done
+# es-set-template-tier  < CLUSTER_NAME > < template_name > [data_warm]
+es-set-template-tier () {
+  local cluster="${1}"
+  local template="${2}"
+  local tier="${3:-data_hot}"
+  banner " ${template} "
+  local json="$(es-get-template "${cluster}" "${template}" | jq '.[].settings.index.routing.allocation.include += { "_tier_preference" : "'${tier}'" } | .[]')"
+  echo "${json}" > "/tmp/${cluster}-${template}.json"
+  local response="$(es-put "${cluster}" "/_template/${template}" "@/tmp/${cluster}-${template}.json")"
+  echo "${response}"
+}
+
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "${BASH_SOURCE[*]}" | grep -F "bashrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then

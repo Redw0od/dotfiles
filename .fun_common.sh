@@ -1,22 +1,21 @@
-THIS="$( basename ${BASH_SOURCE[0]} )"
-SOURCE[$THIS]="${THIS%/*}"
-echo "RUNNING ${THIS}"
+_this="$( basename ${BASH_SOURCE[0]} )"
+_source[$_this]="${_this%/*}"
 
 UTILITIES+=("openssl" "tar" "bunzip" "rar" "unzip" "7z" "uncompress" "gunzip" "wget" "strace")
 
 # Returns Argument Name if not found in shell paths
 shell-utility-status () {
-	local UTILITY="${1}"
-	if [ -z "$(which ${UTILITY})" ]; then
-		echo "${UTILITY}"
+	local utility="${1}"
+	if [ -z "$(which ${utility})" ]; then
+		echo "${utility}"
 	fi
 }
 
 # Report which utilities in an Array are not found in shell paths
 shell-utilities () {
-    local PROGRAMS=("$@")
-	local UNIQUE=($(array_unique "${PROGRAMS[@]}"))
-	for program in "${UNIQUE[@]}"; do
+    local programs=("$@")
+	local unique=($(array_unique "${programs[@]}"))
+	for program in "${unique[@]}"; do
 		if [ -n "$(shell-utility-status ${program})" ]; then
 			echo "$program"
 		fi
@@ -24,22 +23,22 @@ shell-utilities () {
 }
 
 shell-utility-check () {
-	local UTILITY="${1}"
-	if [ -n "$(shell-utility-status ${UTILITY})" ]; then 
-		echo "Missing command line utility: ${UTILITY}"
+	local utility="${1}"
+	if [ -n "$(shell-utility-status ${utility})" ]; then 
+		echo "Missing command line utility: ${utility}"
 	fi
 }
-			   
+	   
 			  
 array_unique () {
-	local ARRAY=("$@")
-	declare -a SORTED
-	for element in "${ARRAY[@]}"; do
-		if [ ! "$(printf '%s\n' "${SORTED[@]}" | grep -F -x ${element} )" ]; then
-			SORTED+=("${element}")
+	local u_array=("$@")
+	declare -a s_array
+	for element in "${u_array[@]}"; do
+		if [ ! "$(printf '%s\n' "${s_array[@]}" | grep -F -x ${element} )" ]; then
+			s_array+=("${element}")
 		fi
 	done
-	printf '%s\n' "${SORTED[@]}"
+	printf '%s\n' "${s_array[@]}"
 }
 
 # Curl with bearer token
@@ -62,7 +61,7 @@ pause () {
 cmd () {
     local command="${1}"
     local wet="${2:-$DRY}"
-    echos "${MUSTARD}${command}${NORMAL}"
+    echos "${MUSTARD}${command}${color[default]}"
     if [ ! "${wet}" == true ]; then
         eval $command; fi
     LAST_STATUS=$?
@@ -82,6 +81,14 @@ echos () {
 	fi
 }
 
+quick-test () {
+	local test_condition="${1}"
+	#eval $(eval_test () { if [ "${test_condition}" ]; then echo "TRUE"; else echo "FALSE"; fi })
+	#eval_test
+	#unset eval_test
+	if [ ${test_condition} ]; then echo "TRUE"; else echo "FALSE"; fi 
+}
+
 # Generate randmon 32char string, takes length as argument
 randpw () {
   local len=${1:-32}
@@ -99,7 +106,7 @@ banner () {
     left="${left}<"
     right="${right}>"
   done
-  echo -e "${color1}${left}${color2}${1}${color1}${right}${NORMAL}"
+  echo -e "${color1}${left}${color2}${1}${color1}${right}${color[default]}"
 }
 
 # Extracts any archive(s) (if unp isn't installed)
@@ -383,6 +390,33 @@ trim () {
 	var="${var#"${var%%[![:space:]]*}"}"  # remove leading whitespace characters
 	var="${var%"${var##*[![:space:]]}"}"  # remove trailing whitespace characters
 	echo -n "$var"
+}
+
+version-test () {
+	local test_version="${1}"
+	local condition="${2}"
+	local condition_version="${3}"
+	local sorted="$(echo -e "${test_version}\n${condition_version}" | sort -V | head -n 1 | grep ${test_version})"
+	local equals=$(if [ "${test_version}" == "${condition_version}" ]; then echo "${test_version}"; fi )
+	case "${condition}" in
+		eq) if [ -n "${equals}" ]; then return 0;  fi;;
+		gt) if [ -z "${sorted}"  ] && [ -z "${equals}" ]; then return 0; fi;;
+		lt) if [ -n "${sorted}"  ] && [ -z "${equals}" ]; then return 0; fi;;
+		ge) if [ -z "${sorted}"  ] || [ -n "${equals}" ]; then return 0; fi;;
+		le) if [ -n "${sorted}"  ] || [ -n "${equals}" ]; then return 0; fi;;
+	esac
+	return 1
+}
+
+# Make directory stack manipulations quiet
+pushd () {
+	if [ -n "$(echo $@ | grep -w '\-q')" ]; then command pushd "$@" > /dev/null;
+	else command pushd "$@"; fi
+}
+
+popd () {
+	if [ -n "$(echo $@ | grep -w '\-q')" ]; then command popd "$@" > /dev/null;
+	else command popd "$@"; fi
 }
 
 # If you source this file directly, apply the overwrites.
