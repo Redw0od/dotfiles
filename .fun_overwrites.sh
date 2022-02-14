@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
-_this="$( basename ${BASH_SOURCE[0]} )"
-_source[$_this]="${_this%/*}"
+
+sh_source
+_this="$( script_source )"
+_sources+=("$(basename ${_this})")
 
 ssh-git-account () {
   local account="${1}"

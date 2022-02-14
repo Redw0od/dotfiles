@@ -1,5 +1,7 @@
-_this="$( basename ${BASH_SOURCE[0]} )"
-_source[$_this]="${_this%/*}"
+
+sh_source
+_this="$( script_source )"
+_sources+=("$(basename ${_this})")
 
 UTILITIES+=("tput" "printf")
 
@@ -80,6 +82,6 @@ esac
 export color
 
 # If you source this file directly, apply the overwrites.
-if [ -z "$(echo "${BASH_SOURCE[*]}" | grep -F "bashrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
+if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi

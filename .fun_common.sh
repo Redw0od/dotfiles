@@ -1,5 +1,7 @@
-_this="$( basename ${BASH_SOURCE[0]} )"
-_source[$_this]="${_this%/*}"
+
+sh_source
+_this="$( script_source )"
+_sources+=("$(basename ${_this})")
 
 UTILITIES+=("openssl" "tar" "bunzip" "rar" "unzip" "7z" "uncompress" "gunzip" "wget" "strace")
 
@@ -62,7 +64,7 @@ cmd () {
     local command="${1}"
     local wet="${2:-$DRY}"
     echos "${MUSTARD}${command}${color[default]}"
-    if [ ! "${wet}" == true ]; then
+    if [ ! "${wet}" = true ]; then
         eval $command; fi
     LAST_STATUS=$?
     if [ ! "${LAST_STATUS}" = "0" ]; then
@@ -72,7 +74,7 @@ cmd () {
 echos () {
     local message="${1}"
     local escapes="${2}"
-	if [ ! "${QUIET}" == true ]; then
+	if [ ! "${QUIET}" = true ]; then
 		if [ -z ${escapes+x} ]; then 
 			echo "$message"
 		else 
@@ -238,29 +240,29 @@ distribution () {
 	dtype="unknown"
 
 	# First check for Macos
-	if [ "$(uname -s)" == "Darwin" ]; then
+	if [ "$(uname -s)" = "Darwin" ]; then
 		dtype="darwin"
 
 	# First test against Fedora / RHEL / CentOS / generic Redhat derivative
 	elif [ -r /etc/rc.d/init.d/functions ]; then
 		source /etc/rc.d/init.d/functions
-		[ zz`type -t passed 2>/dev/null` == "zzfunction" ] && dtype="redhat"
+		[ zz`type -t passed 2>/dev/null` = "zzfunction" ] && dtype="redhat"
 
 	# Then test against SUSE (must be after Redhat,
 	# I've seen rc.status on Ubuntu I think? TODO: Recheck that)
 	elif [ -r /etc/rc.status ]; then
 		source /etc/rc.status
-		[ zz`type -t rc_reset 2>/dev/null` == "zzfunction" ] && dtype="suse"
+		[ zz`type -t rc_reset 2>/dev/null` = "zzfunction" ] && dtype="suse"
 
 	# Then test against Debian, Ubuntu and friends
 	elif [ -r /lib/lsb/init-functions ]; then
 		source /lib/lsb/init-functions
-		[ zz`type -t log_begin_msg 2>/dev/null` == "zzfunction" ] && dtype="debian"
+		[ zz`type -t log_begin_msg 2>/dev/null` = "zzfunction" ] && dtype="debian"
 
 	# Then test against Gentoo
 	elif [ -r /etc/init.d/functions.sh ]; then
 		source /etc/init.d/functions.sh
-		[ zz`type -t ebegin 2>/dev/null` == "zzfunction" ] && dtype="gentoo"
+		[ zz`type -t ebegin 2>/dev/null` = "zzfunction" ] && dtype="gentoo"
 
 	# For Mandriva we currently just test if /etc/mandriva-release exists
 	# and isn't empty (TODO: Find a better way :)
@@ -272,7 +274,7 @@ distribution () {
 		dtype="slackware"
 
 	fi
-	echo $dtype
+	echo "${dtype}"
 }
 
 # Show the current version of the operating system
@@ -397,7 +399,7 @@ version-test () {
 	local condition="${2}"
 	local condition_version="${3}"
 	local sorted="$(echo -e "${test_version}\n${condition_version}" | sort -V | head -n 1 | grep ${test_version})"
-	local equals=$(if [ "${test_version}" == "${condition_version}" ]; then echo "${test_version}"; fi )
+	local equals=$(if [ "${test_version}" = "${condition_version}" ]; then echo "${test_version}"; fi )
 	case "${condition}" in
 		eq) if [ -n "${equals}" ]; then return 0;  fi;;
 		gt) if [ -z "${sorted}"  ] && [ -z "${equals}" ]; then return 0; fi;;
@@ -420,6 +422,6 @@ popd () {
 }
 
 # If you source this file directly, apply the overwrites.
-if [ -z "$(echo "${BASH_SOURCE[*]}" | grep -F "bashrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
+if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi

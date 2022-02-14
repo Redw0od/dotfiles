@@ -8,11 +8,25 @@
 # for ssh logins, install and configure the libpam-umask package.
 #umask 022
 echo "RUNNING .profile"
-# if running bash
-if [ -n "${BASH_VERSION}" ]; then
-    # include .bashrc if it exists
+# Check Shell and create custom source function based on shell type
+unset _sources
+if [ -n "${BASH_SOURCE}" ]; then
+    sh_source () { 
+        eval 'script_source () { echo "${BASH_SOURCE[1]}"; }
+              script_origin () { echo "${BASH_SOURCE[*]}"; }' 
+    }
+    SHELL='bash'
     if [ -f "${HOME}/.bashrc" ]; then
-	source "${HOME}/.bashrc"
+        source "${HOME}/.bashrc"
+    fi
+elif [ -n "${(%):-%x}" ]; then
+    sh_source () { 
+        eval 'script_source () { echo "${(%):-%x}"; }
+              script_origin () { echo ${funcfiletrace[*]%:*} }'
+    }
+    SHELL='zsh'
+    if [ -f "${HOME}/.zshrc" ]; then
+        source "${HOME}/.zshrc"
     fi
 fi
 
@@ -27,7 +41,7 @@ if [ -d "${GOPATH}/bin" ] ; then
     PATH="${GOPATH}/bin:${PATH}"
 fi
 
-if [ "$(distribution)" == "darwin" ]; then
+if [ "$(distribution)" = "darwin" ]; then
     HOMEBREW_BIN="/opt/homebrew/bin"
 else
     HOMEBREW_BIN="/home/linuxbrew/.linuxbrew/bin"
@@ -46,7 +60,7 @@ fi
 
 echo "Shell scripts depend on many additional tools."
 echo "This is a list of tools used in these functions that are missing on your system:"
-shell-utilities ${UTILITIES[@]}
+shell-utilities "${UTILITIES[@]}"
 echo ""
 
 aws-check-binary

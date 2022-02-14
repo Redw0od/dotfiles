@@ -1,5 +1,7 @@
-_this="$( basename ${BASH_SOURCE[0]} )"
-_source[$_this]="${_this%/*}"
+
+sh_source
+_this="$( script_source )"
+_sources+=("$(basename ${_this})")
 
 UTILITIES+=("echo" "awk" "grep" "rev" "git" "cut" "gh")
 
@@ -7,7 +9,7 @@ UTILITIES+=("echo" "awk" "grep" "rev" "git" "cut" "gh")
 # Call with a function's name for more information
 git-help () {
   local func="${1}"
-  local func_names="$(cat ${BASH_SOURCE[0]} | grep '^git-' | awk '{print $1}')"
+  local func_names="$(cat ${_this} | grep '^git-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful git functions."
     echo "For more details: ${color[green]}git-help [function]${color[default]}"
@@ -131,6 +133,6 @@ alias g='git-call; git'
 
 
 # If you source this file directly, apply the overwrites.
-if [ -z "$(echo "${BASH_SOURCE[*]}" | grep -F "bashrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
+if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi

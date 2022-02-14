@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 UNINSTALL="${1}"
 if [ -d "${HOME}/backup/dotfiles" ] && [ -z ${UNINSTALL} ]; then
 	mv "${HOME}/backup/dotfiles" "${HOME}/backup/dotfiles$(date +%s)"

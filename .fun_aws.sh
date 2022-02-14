@@ -1,5 +1,8 @@
-_this="$( basename ${BASH_SOURCE[0]} )"
-_source[$_this]="${_this%/*}"
+
+sh_source
+_this="$( script_source )"
+_sources+=("$(basename ${_this})")
+
 
 UTILITIES+=("aws" "echo" "awk" "grep" "date" "expr" "jq" "column" "base64" "cut" "rev" "sleep")
 
@@ -7,14 +10,14 @@ UTILITIES+=("aws" "echo" "awk" "grep" "date" "expr" "jq" "column" "base64" "cut"
 # Call with a function's name for more information
 aws-help () {
   local func="${1}"
-  local func_names="$(cat ${BASH_SOURCE[0]} | grep '^aws-' | awk '{print $1}')"
+  local func_names="$(cat ${_this} | grep '^aws-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful AWS functions."
     echo "For more details: ${color[green]}aws-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
-  cat "${BASH_SOURCE[0]}" | \
+  cat "${_this}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
       banner " function: $func " "" ${color[gray]} ${color[green]}
@@ -356,6 +359,6 @@ aws-check-binary () {
 }
 
 # If you source this file directly, apply the overwrites.
-if [ -z "$(echo "${BASH_SOURCE[*]}" | grep -F "bashrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
+if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi

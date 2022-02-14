@@ -1,5 +1,7 @@
-_this="$( basename ${BASH_SOURCE[0]} )"
-_source[$_this]="${_this%/*}"
+
+sh_source
+_this="$( script_source )"
+_sources+=("$(basename ${_this})")
 
 UTILITIES+=("echo" "awk" "grep" "cat" "psql" "vault")
 
@@ -7,14 +9,14 @@ UTILITIES+=("echo" "awk" "grep" "cat" "psql" "vault")
 # Call with a function's name for more information
 psql-help () {
   local func="${1}"
-  local func_names="$(cat ${BASH_SOURCE[0]} | grep '^psql-' | awk '{print $1}')"
+  local func_names="$(cat ${_this} | grep '^psql-' | awk '{print $1}')"
   if [ -z "${func}" ]; then
     echo "Helpful Postgres functions."
     echo "For more details: ${color[green]}psql-help [function]${color[default]}"
     echo "${func_names[@]}"
     return
   fi
-  cat "${BASH_SOURCE[0]}" | \
+  cat "${_this}" | \
   while read line; do
 		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
       banner " function: $func " "" ${color[gray]} ${color[green]}
@@ -198,6 +200,6 @@ psql-query-shared () {
 }
 
 # If you source this file directly, apply the overwrites.
-if [ -z "$(echo "${BASH_SOURCE[*]}" | grep -F "bashrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
+if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi

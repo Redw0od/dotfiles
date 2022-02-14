@@ -1,15 +1,11 @@
-#!/usr/bin/env bash
-
+#!/usr/bin/env zsh
 declare -a _sources
 sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
-
-Time12a="\$(date +%H:%M)"
-PathShort="\w";
 declare -a UTILITIES
-UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk"
+UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk" "notify-send"
 "tail" "head" "edit" "less" "vim" "ps" "ping" "netstat" "shutdown" "tree" "tar"
 "openssl" "grep" )
 
@@ -18,15 +14,8 @@ UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk"
 #######################################################
 
 # Source global definitions
-if [ -f /etc/bashrc ]; then
-	source /etc/bashrc
-fi
-
-# Enable bash programmable completion features in interactive shells
-if [ -f /usr/share/bash-completion/bash_completion ]; then
-	source /usr/share/bash-completion/bash_completion
-elif [ -f /etc/bash_completion ]; then
-	source /etc/bash_completion
+if [ -f /etc/zshrc ]; then
+	source /etc/zshrc
 fi
 
 if [ -f "${HOME}/.secrets.sh" ] ; then
@@ -44,11 +33,6 @@ fi
 
 echo "Loaded shell files:"
 echo "${_sources[@]}"
-
-if [ "$(version-test ${BASH_VERSION%%(*} lt '4.0.0' )" ]; then
-	echo "[WARN] These scripts may not work correctly on versions of bash"
-	echo "older than version 4. Your bash version: ${BASH_VERSION}"
-fi
 
 #######################################################
 # EXPORTS
@@ -73,28 +57,6 @@ export HISTSIZE=500
 # Don't put duplicate lines in the history and do not add lines that start with a space
 export HISTCONTROL=erasedups:ignoredups:ignorespace
 
-# Check the window size after each command and, if necessary, update the values of LINES and COLUMNS
-shopt -s checkwinsize
-
-# Causes bash to append to history instead of overwriting it so if you start a new terminal, you have old session history
-shopt -s histappend
-PROMPT_COMMAND='history -a'
-
-# Allow ctrl-S for history navigation (with ctrl-R)
-stty -ixon
-
-
-#iatest=$(expr index "$-" i)
-# Disable the bell
-#if (( $iatest > 0 )); then bind "set bell-style visible"; fi
-
-# Ignore case on auto-completion
-# Note: bind used instead of sticking these in .inputrc
-#if (( $iatest > 0 )); then bind "set completion-ignore-case on"; fi
-
-# Show auto-completion list automatically, without double tab
-#if (( $iatest > 0 )); then bind "set show-all-if-ambiguous On"; fi
-
 # Set the default editor
 export EDITOR=vim
 export VISUAL=vim
@@ -115,18 +77,11 @@ export LESS_TERMCAP_us=$'\E[01;32m'
 
 
 #######################################################
-# GENERAL ALIAS'S
-#######################################################
-# To temporarily bypass an alias, we preceed the command with a \
-# EG: the ls command is aliased, but to use the normal ls command you would type \ls
-
-
-#######################################################
 # Set the ultimate amazing command prompt
 #######################################################
 
-#alias cpu="grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'"
-alias cpu='echo 10'
+alias cpu="grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'"
+
 __setprompt () {
 	local LAST_COMMAND=$? # Must come first!
 
@@ -208,10 +163,10 @@ __setprompt () {
 	PS1+="${color[darkgray]}:${color[blue]}\w${color[darkgray]})-"
 
 	# Total size of files in current directory
-	PS1+="(${color[burgandy]}$(\ls -lah | grep -m 1 total | sed 's/total //')${color[darkgray]}:"
+	PS1+="(${color[burgandy]}$(/bin/ls -lah | /bin/grep -m 1 total | /bin/sed 's/total //')${color[darkgray]}:"
 
 	# Number of files
-	PS1+="${color[purple]}$(trim $(\ls -A -1 | wc -l ))${color[darkgray]})"
+	PS1+="${color[purple]}$(/bin/ls -A -1 | /usr/bin/wc -l)${color[darkgray]})"
 
 	# Skip to the next line
 	PS1+="${color[default]}\n"
