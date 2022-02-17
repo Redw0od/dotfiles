@@ -4,36 +4,36 @@ _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
 UTILITIES+=("echo" "awk" "grep" "cat" "curl" "base64" "tr" "printf" "wc" "sort" "kubectl" "pkill" "sleep")
-
+abbr='es'
 # Gives details on functions in this file
 # Call with a function's name for more information
-es-help () {
-  local func="${1}"
-  local func_names="$(cat ${_this} | grep '^es-' | awk '{print $1}')"
-  if [ -z "${func}" ]; then
-    echo "Helpful Elasticsearch functions."
-    echo "For more details: ${color[green]}es-help [function]${color[default]}"
-    echo "${func_names[@]}"
+eval "${abbr}-help () {
+  local func=\"\${1}\"
+  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
+  if [ -z \"\${func}\" ]; then
+    echo \"Helpful Elasticsearch functions.\"
+    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
+    echo \"\${func_names[@]}\"
     return
   fi
-  cat "${_this}" | \
+  cat \"${_this}\" | \
   while read line; do
-		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${color[gray]} ${color[green]}
-      echo -e "${comment}"
+		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
+      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
+      echo -e \"\${comment}\"
     fi
-    if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
-      if [ ! -z "$(echo ${comment} | grep '^#')" ]; then
-        comment="${comment}\n${line}"
+    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
+      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
+        comment=\"\${comment}\n\${line}\"
       else
-        comment="${line}"
+        comment=\"\${line}\"
       fi
     else
-      comment=""
+      comment=\"\"
     fi
   done  
-  banner "" "" ${color[gray]}
-}
+  banner \"\" \"\" \${color[gray]}
+}"
 
 # Curl Elasticsearch with API key
 # es-curl [url] [ApiKey]
@@ -43,7 +43,7 @@ es-curl () {
   if [ -z ${cURL} ]; then echo "need URL"; return;fi
   local H1="'Content-Type: application/json'"
   local H2="Authorization: ApiKey ${cAPI}"
-  curl -sk ${cURL} -H ${H1} -H "${H2}"
+  curl -k ${cURL} -H ${H1} -H "${H2}"
 }
 
 
@@ -102,7 +102,7 @@ es-put-user () {
   local AUTH="${4}"
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
-  curl -u "${AUTH}" -sk -XPUT ${eURL} -H "${H1}" -d "${eDATA}"
+  curl -u "${AUTH}" -k -XPUT ${eURL} -H "${H1}" -d "${eDATA}"
 }
 
 # Curl POST Elasticsearch with User and Password
@@ -114,7 +114,7 @@ es-post-user () {
   local AUTH="${4}"
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
-  curl -u "${AUTH}" -sk -XPOST ${eURL} -H "${H1}" -d "${eDATA}"
+  curl -u "${AUTH}" -k -XPOST ${eURL} -H "${H1}" -d "${eDATA}"
 }
 
 

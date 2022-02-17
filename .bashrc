@@ -35,7 +35,7 @@ fi
 
 # Load all .fun_ scripts in home directory
 for script in $(/bin/ls -a ${HOME} | grep '^.fun_.*\.sh$' | grep -v overwrites ); do
-    source "${HOME}/${script}"
+	source "${HOME}/${script}"
 done
 
 if [ -f "${HOME}/.fun_overwrites.sh" ]; then

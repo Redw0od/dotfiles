@@ -4,37 +4,36 @@ _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
 UTILITIES+=("echo" "awk" "grep" "cat" "kubectl" "pkill" "printf" "base64" "jq" "curl" "wget")
-
+abbr='kube'
 # Gives details on functions in this file
 # Call with a function's name for more information
-# kube-help [kube-function]
-kube-help () {
-  local func="${1}"
-  local func_names="$(cat ${_this} | grep '^kube-' | awk '{print $1}')"
-  if [ -z "${func}" ]; then
-    echo "Helpful kubernetes functions."
-    echo "For more details: ${color[green]}kube-help [function]${color[default]}"
-    echo "${func_names[@]}"
+eval "${abbr}-help () {
+  local func=\"\${1}\"
+  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
+  if [ -z \"\${func}\" ]; then
+    echo \"Helpful Elasticsearch functions.\"
+    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
+    echo \"\${func_names[@]}\"
     return
   fi
-  cat "${_this}" | \
+  cat \"${_this}\" | \
   while read line; do
-		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${color[gray]} ${color[green]}
-      echo -e "${comment}"
+		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
+      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
+      echo -e \"\${comment}\"
     fi
-    if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
-      if [ ! -z "$(echo ${comment} | grep '^#')" ]; then
-        comment="${comment}\n${line}"
+    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
+      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
+        comment=\"\${comment}\n\${line}\"
       else
-        comment="${line}"
+        comment=\"\${line}\"
       fi
     else
-      comment=""
+      comment=\"\"
     fi
   done  
-  banner "" "" ${color[gray]}
-}
+  banner \"\" \"\" \${color[gray]}
+}"
 
 # PS1 output for Kubernets Context
 kube-ps1-color () {

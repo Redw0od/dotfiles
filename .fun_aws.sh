@@ -5,36 +5,36 @@ _sources+=("$(basename ${_this})")
 
 
 UTILITIES+=("aws" "echo" "awk" "grep" "date" "expr" "jq" "column" "base64" "cut" "rev" "sleep")
-
+abbr='aws'
 # Gives details on functions in this file
 # Call with a function's name for more information
-aws-help () {
-  local func="${1}"
-  local func_names="$(cat ${_this} | grep '^aws-' | awk '{print $1}')"
-  if [ -z "${func}" ]; then
-    echo "Helpful AWS functions."
-    echo "For more details: ${color[green]}aws-help [function]${color[default]}"
-    echo "${func_names[@]}"
+eval "${abbr}-help () {
+  local func=\"\${1}\"
+  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
+  if [ -z \"\${func}\" ]; then
+    echo \"Helpful Elasticsearch functions.\"
+    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
+    echo \"\${func_names[@]}\"
     return
   fi
-  cat "${_this}" | \
+  cat \"${_this}\" | \
   while read line; do
-		if [ -n "$(echo "${line}" | grep -F "${func} ()" )" ]; then
-      banner " function: $func " "" ${color[gray]} ${color[green]}
-      echo -e "${comment}"
+		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
+      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
+      echo -e \"\${comment}\"
     fi
-    if [ ! -z "$(echo ${line} | grep '^#')" ]; then 
-      if [ ! -z "$(echo ${comment} | grep '^#')" ]; then
-        comment="${comment}\n${line}"
+    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
+      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
+        comment=\"\${comment}\n\${line}\"
       else
-        comment="${line}"
+        comment=\"\${line}\"
       fi
     else
-      comment=""
+      comment=\"\"
     fi
   done  
-  banner "" "" ${color[gray]}
-}
+  banner \"\" \"\" \${color[gray]}
+}"
 
 
 # PS1 output for AWS profile
@@ -343,6 +343,21 @@ aws-dms-delete-tasks () {
   done  
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
+
+######### EC2 Functions
+
+# Filter EC2 instances by name
+# aws-ec2-name some-name*
+aws-ec2-name () {
+  local name_filter="${1}"
+  if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
+  json=$(aws ec2 describe-instances --filters Name=tag:Name,Values=${name_filter})
+  if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
+  echo "${json}"
+}
+
+
+
 
 ####### RDS FUNCTIONS
 
