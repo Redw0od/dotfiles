@@ -356,10 +356,20 @@ aws-ec2-name () {
   echo "${json}"
 }
 
+# List available secrets per region
+# aws-list-secrets [region]
+aws-list-secrets () {
+  local region="${1:+--region ${1}}"
+  aws secretsmanager list-secrets ${region} | jq -r '.SecretList[].Name' 
+}
 
-
-
-####### RDS FUNCTIONS
+# List available secrets per region
+# aws-get-secret <secret_name> [region]
+aws-get-secret () {
+  local secret="${1}"
+  local region="${2:+--region ${2}}"
+  aws secretsmanager get-secret-value --secret-id ${secret} ${region} | jq -r '.SecretString' 
+}
 
 aws-check-binary () {
   if [ -z "$(which aws)" ]; then

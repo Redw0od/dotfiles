@@ -63,7 +63,7 @@ pause () {
 cmd () {
     local command="${1}"
     local wet="${2:-$DRY}"
-    echos "${MUSTARD}${command}${color[default]}"
+    echos "${color[info]}${command}${color[default]}"
     if [ ! "${wet}" = true ]; then
         eval $command; fi
     LAST_STATUS=$?
@@ -419,6 +419,33 @@ pushd () {
 popd () {
 	if [ -n "$(echo $@ | grep -w '\-q')" ]; then command popd "$@" > /dev/null;
 	else command popd "$@"; fi
+}
+
+# Show all currently defined arrays in your shell
+array-list () {
+	declare -a | cut -d "=" -f 1 | cut -d ' ' -f 3
+}
+
+# Show all currently defined associative arrays in your shell
+array-map-list () {
+	declare -A | cut -d "=" -f 1 | cut -d ' ' -f 3
+}
+
+# Display all values stored in an array
+array-dump () {
+	unset -n array_name array_values
+	local array_name=${1}
+	local type="$(declare -p ${array_name} | cut -d ' ' -f 2)"
+	if [ -n "$(echo ${type} | grep a )" ]; then
+		eval "declare -a array_values=(\${${array_name}[@]})"
+		printf "%s\n" "${array_values[@]}"
+	else
+		eval "declare -n array_values=${array_name}"
+
+		for key in $(printf '%s\n' ${!array_values[@]} | sort ); do
+			printf "%s %s\n" "${array_name}[${key}]" "${array_values[${key}]}"
+		done | column -t
+	fi
 }
 
 # If you source this file directly, apply the overwrites.

@@ -64,6 +64,8 @@ export KUBECONFIG="${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml"
 export TG_ROOT="${HOME}/git/platform/terraform-modules"
 export GOPATH="$HOME/go"
 export IFS_BACKUP=$IFS
+export LAST_STATUS=0
+export QUIET="true"
 
 
 # Expand the history size
