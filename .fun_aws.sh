@@ -154,21 +154,25 @@ aws-expect () {
   local profile="${1}"
   local token_code="$(aws-mfa-token ${profile})"
   local mfa="$(aws-extract-mfa-arn ${profile})"
+  if [ -n "${mfa}" ];then
   echo "set timeout -1
  spawn /tmp/expect_aws_token.sh
  match_max 100000
  expect -exact \"Enter MFA code for ${mfa}: \"
  send -- \"$token_code\\r\"
  expect eof" > /tmp/expect_script.exp
- chmod 777 /tmp/expect_script.exp
+  chmod 777 /tmp/expect_script.exp
   echo "#!/usr/bin/env bash
   source $HOME/.profile
   aws-assume-role $profile
   aws-save ${profile}" > /tmp/expect_aws_token.sh
- chmod 777 /tmp/expect_aws_token.sh
-
- expect /tmp/expect_script.exp
- aws-load ${profile}
+  chmod 777 /tmp/expect_aws_token.sh
+  expect /tmp/expect_script.exp
+  else
+    aws-assume-role $profile
+    aws-save ${profile}
+  fi
+  aws-load ${profile}
 }
 
 
@@ -279,6 +283,17 @@ aws-rds-snapshot (){
   fi
 }
 
+aws-ecr-login () {
+  local repo="${1:-785540879854.dkr.ecr.us-west-2.amazonaws.com}"
+  local region="${2:+"--region ${2}"}"
+  local token="$(aws ecr get-login-password ${region})"
+  echo ${token} | docker login --username AWS --password-stdin "${repo}"
+}
+
+aws-ecr-repositories () {
+  local region="${1:+"--region ${1}"}"
+  aws ecr describe-repositories | jq -r '.repositories[] | [.repositoryName, .repositoryUri] | @tsv' | sort | column  -t -s$'\t' -n -
+}
 
 #####################
 ##### DMS FUNCTIONS

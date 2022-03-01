@@ -36,6 +36,7 @@ kube-profile () {
 mad-assume () { 
 	local name="${1}"
 	local force="${2}"
+	export MAD_PROFILE="${name}"
 	case "${name}" in
 		prod)
 			ssh-load-keys new_prod

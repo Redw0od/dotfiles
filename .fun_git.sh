@@ -9,7 +9,7 @@ abbr='git'
 # Call with a function's name for more information
 eval "${abbr}-help () {
   local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
+  local func_names=\"\$(cat ${_this} | grep '^${abbr}.*()' | awk '{print \$1}')\"
   if [ -z \"\${func}\" ]; then
     echo \"Helpful Elasticsearch functions.\"
     echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
@@ -78,13 +78,13 @@ git-call () {
   local dir="${2:-${active_dir}}"
   local function="${1}"
   if [ ! -d "${dir}/.git" ]; then return 1; fi
-  pushd "${dir}"
+  pushd "${dir}" > /dev/null
   local account="$(git config --get remote.origin.url | grep -o -P '(?<=:).*?(?=/)')"
   ssh-git-account "${account}"
   local value="$(eval ${function})"
   local code=$?
   if [ ! -z "${value}" ]; then echo "${value}"; else return ${code}; fi
-  popd "${active_dir}"
+  popd > /dev/null
 }
 
 # Update cached main branch for specified repo
@@ -107,10 +107,12 @@ git-update-main () {
   local git_dir="${1:-$GITHOME}"
   for d in $(dirname $(find ${git_dir} -type d -name ".git" )); do 
     echo -e "\nRepo: ${d}"
-    git-latest-main ${d}
+    git-latest-main "${d}"
   done
 }
 
+# Find all repos owned by a user and clone them
+# git-clone-all <owner>
 git-clone-all () {
   local owner="${1}"
   if [ -z "${owner}" ]; then return 1; fi
@@ -131,6 +133,43 @@ git-clone-all () {
 alias gitpull='git-call git-pull'
 alias g='git-call; git'
 
+# Print a list of projects owned by a group ID
+# gitlab-list-projects <group Id>
+gitlab-list-projects () {
+  local group_id=${1}
+  if [ -z "${group_id}" ]; then return;fi
+  local projects=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" https://gitlab.com/api/v4/groups/${group_id} | jq -r '.projects[].path_with_namespace')
+  for project in ${projects[@]}; do
+    printf '%s\n' "${project}" 
+  done
+}
+
+# Print a list of subgroups owned by a group ID
+# gitlab-list-groups <group Id>
+gitlab-list-groups () {
+  local group_id=${1:-11464447}
+  local id_only=${2}
+  local subgroups=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" https://gitlab.com/api/v4/groups/${group_id}/subgroups/ | jq '.[].id')
+  if [ -z "${id_only}" ]; then
+    curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" https://gitlab.com/api/v4/groups/${group_id}/subgroups/ | jq -r '.[] | [.id,.full_path] | @tsv' | sort | column  -t -s$'\t' -n -
+  fi
+  for group in ${subgroups[@]}; do
+    if [ -n "${id_only}" ]; then
+      printf '%s\n' "${group}" 
+    fi
+    gitlab-list-groups ${group} ${id_only}
+  done  
+}
+
+# Print a list of all projects in group and subgroups
+# gitlab-list-all-projects <root group Id>
+gitlab-list-all-projects () {
+  local group_id=${1:-11464447}
+  local groups=$(gitlab-list-groups ${group_id})
+  for group in ${groups[@]}; do
+    gitlab-list-projects ${group}
+  done
+}
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then

@@ -122,6 +122,14 @@ create-db () {
     psql -U ${dms_user} -h "${target_server}" -c "REVOKE ALL ON DATABASE \"${db}\" FROM PUBLIC;" -d postgres
 }
 
+psql-connect () {
+  local host="${1}"
+  local username="${2:-respond}"
+  local password=${3:-$(vault-rds-lookup)}
+  export PGPASSWORD=${password}
+  psql -U ${username} -h ${host} -d ${username}
+}
+
 # Create User for DB permissions if it doesnt exist
 create-user () {
   local user="${1}"

@@ -195,10 +195,10 @@ es-report-users () {
 es-cluster-report () {
   local cluster="${1}"
   local query="${2}"
-  if [[ ${query} == "shards" ]]; then
+  if [ "${query}" == "shards" ]; then
     echo "$(es-get ${cluster} /_cat/shards)"
   fi
-  if [[ ${query} == "shardstats" ]]; then
+  if [ "${query}" == "shardstats" ]; then
     local shards=$(es-get ${cluster} /_cat/shards) 
     local fmt="%-15s %5s %9s %9s\n"
     printf "${fmt}" "Action" "Total" "Primaries" "Replicas" 
@@ -208,8 +208,8 @@ es-cluster-report () {
     printf "${fmt}" "Total" $(echo "${shards}" | grep -v STARTED | wc -l) $(echo "${shards}" | grep -v STARTED | grep ' p '| wc -l) $(echo "${shards}" | grep -v STARTED | grep ' r '| wc -l)
   
   fi
-  if [[ ${query} == "nodes" ]]; then
-    echo "$(es-get ${cluster} /_cat/nodes\?v=true\&h=name,cpu,heapPercent,ramPercent,ramCurrent,diskTotal,diskAvail)" | (read -r; printf "%s\n" "$REPLY"; sort)
+  if [ "${query}" == "nodes" ]; then
+    echo "$(es-get ${cluster} '/_cat/nodes\?v=true\&h=name,cpu,heapPercent,ramPercent,ramCurrent,diskTotal,diskAvail')" | (read -r; printf "%s\n" "$REPLY"; sort)
   fi
 }
 
@@ -303,7 +303,7 @@ es-disable-role-mapping () {
   es-put ${cluster} "/_security/role_mapping/${mapping}" "${role_json}"
 }
 
-# Get specific user
+# Get specific user details from Elastic server
 # es-get-user <cluster_nickname> <user_name>
 es-get-user () {
   local cluster="${1}"
@@ -334,6 +334,27 @@ es-create-user () {
   user_json="$(echo ${user_json} | jq ".password = \"${password}\"")"
   user_json="$(echo ${user_json} | jq ".roles = [ ${roles} ] ")"
   es-put ${cluster} "/_security/user/${username}" "${user_json}"
+}
+
+es-dump-all-configs () {
+  local cluster=${1}
+  local folder=${2}
+  mkdir -p "${folder}/index_templates"
+  for p in $(es-get ${cluster} /_template | jq -r 'keys[]');do echo "template: $p";es-get "${cluster}" "/_template/$p" > "${folder}/index_templates/$p.json" ;done
+  mkdir -p "${folder}/ilm"
+  for p in $(es-get ${cluster} /_ilm/policy | jq -r 'keys[]');do echo "ilm: $p";es-get "${cluster}" "/_ilm/policy/$p" > "${folder}/ilm/$p.json" ;done
+  mkdir -p "${folder}/index_patterns"
+  for p in $(es-kb-get ${cluster} /api/saved_objects/_find?type=index-pattern | jq -r '.saved_objects[] | @base64');do 
+    title=$(echo "$p"| base64 --decode | jq -r .attributes.title); 
+    echo "index_pattern: ${title}"
+    echo "$p" | base64 --decode | jq . > "${folder}/index_patterns/${title}.json"
+  done
+  mkdir -p "${folder}/roles"
+  for p in $(es-get ${cluster} /_security/role | jq -r 'keys[]');do echo "role: $p";es-get "${cluster}" "/_security/role/$p" > "${folder}/roles/$p.json" ;done
+  mkdir -p "${folder}/users"
+  for p in $(es-get ${cluster} /_security/user | jq -r 'keys[]');do echo "user: $p";es-get "${cluster}" "/_security/user/$p" > "${folder}/users/$p.json" ;done
+  mkdir -p "${folder}/snapshots"
+  for p in $(es-get ${cluster} /_snapshot | jq -r 'keys[]');do echo "snapshot: $p";es-get "${cluster}" "/_snapshot/$p" > "${folder}/snapshot_repo/$p.json" ;done
 }
 
 # If you source this file directly, apply the overwrites.

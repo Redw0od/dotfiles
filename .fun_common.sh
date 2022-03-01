@@ -452,3 +452,13 @@ array-dump () {
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
+
+jobs-pause () {
+	local job_list=$(jobs | grep -v Done | wc -l | awk '{print $1}')
+	sleep 5s
+	while [ -n "${job_list}" ] && [ ${job_list} != 0 ]; do
+		sleep 1s
+		job_list=$(jobs | grep -v Done | wc -l | awk '{print $1}')
+		echo "${job_list} jobs remaining."
+	done
+}

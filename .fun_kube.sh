@@ -103,6 +103,18 @@ kube-safe-apply () {
   kube-check-server-binary $*
 }
 
+# Change init container tag for all deployments in a namespace
+# kube-deploy-init-change <tag name> [namespace]
+kube-deploy-init-change () {
+  local tag=${1}
+  local namespace=${2:-default}
+  for d in $(kube-check-server-binary -n ${namespace} get deploy --no-headers | awk '{print $1}' ); do 
+    img=$(kube-check-server-binary -n ${namespace} get deploy/$d -o json | jq -er '.spec.template.spec.initContainers[].image' 2> /dev/null)
+    if [ $? != 0 ]; then echo "${color[fail]}deploy/$d has no init container${color[default]}"; continue; fi
+    kube-check-server-binary -n ${namespace} get deploy/$d -o json | jq ".spec.template.spec.initContainers[].image = \"${img%%:*}:${tag}\"" | kubectl apply -f -
+  done
+}
+
 # Report resource usage inside pod
 # kube-pod-top <pod name> [namespace] [container] [header bool]
 kube-pod-top () {  
