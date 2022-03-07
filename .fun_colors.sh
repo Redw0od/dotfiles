@@ -78,6 +78,12 @@ case ${TERM} in
 	  color[default]="\033[0m"
   ;;
 esac
+color[banner]=${color[gray]}
+color[bannertext]=${color[lightgray]}
+color[warn]=${color[orange]}
+color[info]=${color[teal]}
+color[error]=${color[red]}
+color[important]=${color[mustard]}
 
 export color
 

@@ -66,3 +66,4 @@ echo ""
 aws-check-binary
 kube-check-binary
 tg-check-binary
+vault-check-binary

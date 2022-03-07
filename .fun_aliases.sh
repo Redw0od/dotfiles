@@ -163,6 +163,7 @@ alias 777='chmod -R 777'
 
 # Search command line history
 alias h="history | grep "
+alias e="export | grep "
 
 # Search running processes
 alias p="ps aux | grep "
@@ -208,6 +209,7 @@ alias logs="sudo find /var/log -type f -exec file {} \; | grep 'text' | cut -d' 
 
 # SHA1
 alias sha1='openssl sha1'
+alias kubeclt='echo DUMBASS;kubectl'
 
 
 

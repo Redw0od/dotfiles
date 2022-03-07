@@ -93,10 +93,12 @@ git-latest-main () {
   local git_dir=${1:-$(pwd)}
   local origin="$(git-call git-origin ${git_dir})"
   local branch="$(git-call git-branch ${git_dir})"
-  banner " origin: ${origin}, branch: ${branch} "
+  banner " $(basename ${git_dir}) "
   if [ "${origin}" = "${branch}" ]; then 
+    banner " origin: ${origin}, branch: ${branch} "
     git-call git-pull "${git_dir}"
   else
+    banner " origin: ${origin}, branch: ${color[WARN]}${branch}${color[default]} "
     git-call "git fetch origin ${origin}:${origin}" "${git_dir}"
   fi
 }
@@ -107,7 +109,7 @@ git-update-main () {
   local git_dir="${1:-$GITHOME}"
   for d in $(dirname $(find ${git_dir} -type d -name ".git" )); do 
     echo -e "\nRepo: ${d}"
-    git-latest-main "${d}"
+    git-latest-main "${d}" &
   done
 }
 

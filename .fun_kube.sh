@@ -183,7 +183,8 @@ kube-check-binary () {
 # Compare default kubectl version to k8s server version
 # Then attempt to download and run commands on matching versions
 kube-check-server-binary () {
-  local server="$(kubectl version -o json 2> /dev/null | jq -r '.serverVersion.gitVersion' | cut -d '-' -f 1)"
+  local server="$(kubectl version -o json 2> /dev/null | jq -er '.serverVersion.gitVersion' | cut -d '-' -f 1)"
+  if [ "${server}" = "null" ]; then echo "Failed to query server. Check VPN or reauthenticate.";return; fi
   local client="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
   if [ "${server}" != "${client}" ]; then
     if [ ! "$(which kubectl${server})" ]; then
@@ -203,7 +204,68 @@ kube-check-server-binary () {
   fi
 }
 
+# Pass object json and strip out ephemeral details
+# echo jsonfile > kube-export
+kube-export () {
+  jq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid) | .metadata.creationTimestamp=null'
+}
+
+kube-export-yaml () {
+  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata."kubectl.kubernetes.io/last-applied-configuration") | .metadata.creationTimestamp=null'
+}
+
+# Decode base64 encoded values in .data object
+# kube-show-secret <namespace> <secret name>
+kube-show-secret () {
+  local namespace="${1}"
+  local secret_name="${2}"
+  kube-safe-apply -n "${namespace}" get secret "${secret_name}" -o json | jq -r '.data | map_values(@base64d)'
+}
+
+# Get all pods over a specified number of days old
+# kube-list-old-pods [days]
+kube-list-old-pods () {
+  local days=${1:-0}
+  local seniors=$(kubectl get pod --all-namespaces | awk 'match($6,/d/) {print $0}')
+  local age=0
+  IFS_BACKUP=$IFS; IFS=$'\n'
+  for pod in ${seniors[@]}; do 
+    age=$(echo "${pod}" | awk '{print $6}' | cut -dd -f1)
+    if [ ${days} -lt ${age} ]; then
+      echo "${pod}"
+    fi
+  done
+  IFS=$IFS_BACKUP
+}
+
+kube-rollover-pods () {
+  local namespace="${1}"
+  local deathnote=""
+  local deathqueue=""
+  for list in $(cat - ); do
+    fields="$(echo $list | awk '{print NF}')"
+    if [ "${fields}" == "5" ] && [ -z "${namespace}" ]; then echo "Missing Namespace.";return;fi
+    if [ "${fields}" == "6" ]; then
+      local namespace="$(echo $list | awk '{print $1}')"
+      local pod="$(echo $list | awk '{print $2}')"
+    fi
+    note="${namespace}$(echo ${pod} | cut -d- -f1)"
+    #replicaset="$(kubectl -n ${namespace} get pod resource-gateway-78dd7dfdf5-g8x7m -o json | jq  -r '.metadata.ownerReferences[].name')"
+    if [ -z "$(echo $deathnote | grep $note )" ]; then
+      deathnote="${deathnote}:${note}"
+      kubectl -n ${namespace} delete pod/${pod} &
+    else
+      deathqueue+=("${list}")
+    fi
+  done
+  echo "queue: ${deathqueue[@]}"
+}
+
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
+
+# jq patch configmap with setting
+# for ns in ${NS[@]}; do k -n $ns get configmap logstash-metrics-pipeline -o json | jq '.data."input_main.conf" |= sub("}\n}";"    security_protocol => \"SSL\"\n  }\n}")' | kubectl -n $ns apply -f -; done
+# for ns in ${NS[@]}; do k -n $ns get configmap logstash-onprem-logs-pipeline -o json | jq '.data."input_main.conf" |= sub("}\n}";"    security_protocol => \"SSL\"\n  }\n}")' | kubectl -n $ns apply -f -; done

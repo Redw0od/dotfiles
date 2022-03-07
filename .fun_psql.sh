@@ -122,6 +122,8 @@ create-db () {
     psql -U ${dms_user} -h "${target_server}" -c "REVOKE ALL ON DATABASE \"${db}\" FROM PUBLIC;" -d postgres
 }
 
+# Connect you to a RDS database, defaults to repond user
+# psql-connect <host> [username] [password]
 psql-connect () {
   local host="${1}"
   local username="${2:-respond}"

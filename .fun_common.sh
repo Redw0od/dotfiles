@@ -83,6 +83,12 @@ echos () {
 	fi
 }
 
+grep1 () {
+	local text="${1}"
+	local field="\$${2:-1}"
+	grep "${text}" | awk '{print $1}'
+}
+
 quick-test () {
 	local test_condition="${1}"
 	#eval $(eval_test () { if [ "${test_condition}" ]; then echo "TRUE"; else echo "FALSE"; fi })
@@ -100,15 +106,15 @@ randpw () {
 # Print Text with ASCII banner, takes width as second argument
 banner () {
   local width=${2:-80}
-  local color1=${3:-$NORMAL}
-  local color2=${4:-$NORMAL}
+  local _c1=${3:-${color[banner]}}
+  local _c2=${4:-${color[bannertext]}}
   local margin=$(( ($width-${#1})/2 ))
   local left="";right=""
   for ((i = 0 ; i < $margin ; i++)); do
     left="${left}<"
     right="${right}>"
   done
-  echo -e "${color1}${left}${color2}${1}${color1}${right}${color[default]}"
+  echo -e "${_c1}${left}${_c2}${1}${_c1}${right}${color[default]}"
 }
 
 # Extracts any archive(s) (if unp isn't installed)
