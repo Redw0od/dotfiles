@@ -5,35 +5,9 @@ _sources+=("$(basename ${_this})")
 
 UTILITIES+=("echo" "awk" "grep" "cat" "kubectl" "pkill" "printf" "base64" "jq" "curl" "wget")
 abbr='kube'
-# Gives details on functions in this file
-# Call with a function's name for more information
-eval "${abbr}-help () {
-  local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
-  if [ -z \"\${func}\" ]; then
-    echo \"Helpful Elasticsearch functions.\"
-    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
-    echo \"\${func_names[@]}\"
-    return
-  fi
-  cat \"${_this}\" | \
-  while read line; do
-		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
-      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
-      echo -e \"\${comment}\"
-    fi
-    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
-      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
-        comment=\"\${comment}\n\${line}\"
-      else
-        comment=\"\${line}\"
-      fi
-    else
-      comment=\"\"
-    fi
-  done  
-  banner \"\" \"\" \${color[gray]}
-}"
+
+# Create help function for this file
+common-help "${abbr}" "${_this}"
 
 # PS1 output for Kubernets Context
 kube-ps1-color () {
@@ -124,7 +98,7 @@ kube-pod-top () {
   local header="${4:-true}"
   local fmt="%6s %5s %7s %-12s\n"
   if [ -z "${pod}" ]; then return 1; fi
-  if [ -n "$(shell-utilities 'kubectl' )" ]; then return 1; fi
+  if [ -n "$(common-utilities 'kubectl' )" ]; then return 1; fi
   if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi  
   local top=$(kubectl ${namespace} exec "${pod}" ${container} -- top -b -n 1 2> /dev/null | grep -A 1 PID | grep -v PID) 
   if [ $? != 0 ]; then echo "ERROR running top on ${namespace}:${pod}"; return; fi
@@ -158,6 +132,19 @@ kube-es-key () {
   echo "${id}:${api_key}"
 }
 
+# Append all kuberentes config files to KUBECONFIG env var
+# kube-config-all [path]
+kube-config-all () {
+  local kube_path="${1:-${HOME}/.kube/}"
+  for f in $(/bin/ls -a ${kube_path}); do
+    if [[ -f ${kube_path}${f} ]] && [[ -z "$(echo ${KUBECONFIG} | sed 's/:/\n/g' | grep "^${f}$")" ]]; then
+      if [[ -n "$(cat ${kube_path}${f} | grep 'kind: Config')" ]]; then
+		    export KUBECONFIG="${KUBECONFIG+$KUBECONFIG:}${kube_path}${f}"
+      fi
+	  fi
+  done
+}
+
 # Access kubernetes secret for elasticsearch user credentials
 # kube-es-creds [secret] [namespace]
 kube-es-creds () {
@@ -172,7 +159,7 @@ kube-es-creds () {
 
 # Check for new update to kubectl
 kube-check-binary () {
-  if [ -n "$(shell-utilities 'kubectl' )" ]; then return 1; fi
+  if [ -n "$(common-utilities 'kubectl' )" ]; then return 1; fi
   local version="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
   local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"  
   if [[ "${version}" != "${latest}" ]]; then
@@ -187,9 +174,9 @@ kube-check-server-binary () {
   if [ "${server}" = "null" ]; then echo "Failed to query server. Check VPN or reauthenticate.";return; fi
   local client="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
   if [ "${server}" != "${client}" ]; then
-    if [ ! "$(which kubectl${server})" ]; then
+    if [ ! "$(command -v kubectl${server})" ]; then
       echo "Server version [${server}] mismatch client [${client}]"
-      wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/linux/amd64/kubectl
+      wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/$(uname | awk '{print tolower($0)}')/amd64/kubectl
       if [ -f "/tmp/kubectl" ]; then
         chmod +x /tmp/kubectl
         sudo mv /tmp/kubectl /usr/local/bin/kubectl${server}
@@ -211,7 +198,7 @@ kube-export () {
 }
 
 kube-export-yaml () {
-  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata."kubectl.kubernetes.io/last-applied-configuration") | .metadata.creationTimestamp=null'
+  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.annotations."kubectl.kubernetes.io/last-applied-configuration") | .metadata.creationTimestamp=null'
 }
 
 # Decode base64 encoded values in .data object
@@ -238,27 +225,28 @@ kube-list-old-pods () {
   IFS=$IFS_BACKUP
 }
 
+# Take a list of pods and terminate them
+# kube-list-old-pods 6 | grep 'event\|resource' | kube-rollover-pods
+# kubectl get pods | kube-rollover-pods <namespace>
 kube-rollover-pods () {
   local namespace="${1}"
-  local deathnote=""
-  local deathqueue=""
+  local deathnote deathqueue pod 
+  local backup_ifs=$IFS
+  IFS=$'\n'
   for list in $(cat - ); do
     fields="$(echo $list | awk '{print NF}')"
-    if [ "${fields}" == "5" ] && [ -z "${namespace}" ]; then echo "Missing Namespace.";return;fi
+    if [ "${fields}" == "5" ]; then
+      if [ -z "${namespace}" ]; then echo "Missing Namespace.";return;fi
+      pod="$(echo $list | awk '{print $1}')"
+    fi
     if [ "${fields}" == "6" ]; then
-      local namespace="$(echo $list | awk '{print $1}')"
-      local pod="$(echo $list | awk '{print $2}')"
+      namespace="$(echo $list | awk '{print $1}')"
+      pod="$(echo $list | awk '{print $2}')"
     fi
-    note="${namespace}$(echo ${pod} | cut -d- -f1)"
-    #replicaset="$(kubectl -n ${namespace} get pod resource-gateway-78dd7dfdf5-g8x7m -o json | jq  -r '.metadata.ownerReferences[].name')"
-    if [ -z "$(echo $deathnote | grep $note )" ]; then
-      deathnote="${deathnote}:${note}"
-      kubectl -n ${namespace} delete pod/${pod} &
-    else
-      deathqueue+=("${list}")
-    fi
+    echo "kubectl -n ${namespace} delete pod/${pod}"
+    kubectl -n ${namespace} delete pod/${pod} &
   done
-  echo "queue: ${deathqueue[@]}"
+  IFS=$backup_ifs
 }
 
 # If you source this file directly, apply the overwrites.

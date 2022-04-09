@@ -28,10 +28,10 @@ QUIET="false"
 
 cmd "pause"; echos ""
 
-cmd "shell-utility-status echo"; echos ""
-cmd "shell-utility-status FAILS"; echos ""
-cmd "shell-utilities \${UTILITIES[@]}"; echos ""
-cmd "array_unique \${UTILITIES[@]}"; echos ""
+cmd "common-utility-status echo"; echos ""
+cmd "common-utility-status FAILS"; echos ""
+cmd "common-utilities \${UTILITIES[@]}"; echos ""
+cmd "array-unique \${UTILITIES[@]}"; echos ""
 cmd "curl-bearer ${KIBANA[LEGION]} ${APIKEYS[LEGION]}"; echos ""
 cmd "randpw"; echos "\n" +
 cmd "randpw 80"; echos "\n" +
@@ -59,7 +59,7 @@ cmd "up 2"; echos ""
 cmd "pwd"; echos ""
 cmd "distribution"; echos ""
 cmd "ver"; echos ""
-#cmd "install_bashrc_support"
+#cmd "install-bashrc-support"
 cmd "netinfo"; echos ""
 cmd "whatsmyip"; echos ""
 cmd "rot13 $(rot13 'SHIFT ME')"; echos ""

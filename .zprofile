@@ -10,8 +10,8 @@
 # Check Shell and create custom source function based on shell type
 unset _sources
 
-if [ -f "${HOME}/.bashrc" ]; then
-    source "${HOME}/.bashrc"
+if [ -f "${HOME}/.zshrc" ]; then
+    source "${HOME}/.zshrc"
 fi
 
 # set PATH so it includes user's private bin if it exists
@@ -39,12 +39,12 @@ if [ -d "${HOMEBREW_BIN}" ] ; then
     path-prepend "${HOMEBREW_BIN}"
 fi
 if [ -e "${HOMEBREW_BIN}/brew" ] ; then
-    eval "$(${HOMEBREW_BIN}/brew shellenv)"
+    eval $(${HOMEBREW_BIN}/brew shellenv)
     if [ -s "${HOMEBREW_PREFIX}/opt/nvm/nvm.sh" ] ; then
         source "${HOMEBREW_PREFIX}/opt/nvm/nvm.sh"
     fi
-    if [ -s "${HOMEBREW_PREFIX}/opt/nvm/etc/bash_completion.d/nvm" ] ; then
-        source "${HOMEBREW_PREFIX}/opt/nvm/etc/bash_completion.d/nvm"
+    if [ -s "${HOMEBREW_PREFIX}/opt/nvm/etc/zsh_completion.d/nvm" ] ; then
+        source "${HOMEBREW_PREFIX}/opt/nvm/etc/zsh_completion.d/nvm"
     fi
 fi
 
@@ -60,4 +60,3 @@ if [ ! -f "${HOME}/tmp/version_check" ] && [ -z "$(find "${HOME}/tmp/version_che
     tg-check-binary
     vault-check-binary
 fi
-

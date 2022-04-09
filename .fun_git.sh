@@ -7,33 +7,9 @@ UTILITIES+=("echo" "awk" "grep" "rev" "git" "cut" "gh")
 abbr='git'
 # Gives details on functions in this file
 # Call with a function's name for more information
-eval "${abbr}-help () {
-  local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}.*()' | awk '{print \$1}')\"
-  if [ -z \"\${func}\" ]; then
-    echo \"Helpful Elasticsearch functions.\"
-    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
-    echo \"\${func_names[@]}\"
-    return
-  fi
-  cat \"${_this}\" | \
-  while read line; do
-		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
-      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
-      echo -e \"\${comment}\"
-    fi
-    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
-      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
-        comment=\"\${comment}\n\${line}\"
-      else
-        comment=\"\${line}\"
-      fi
-    else
-      comment=\"\"
-    fi
-  done  
-  banner \"\" \"\" \${color[gray]}
-}"
+
+# Create help function for this file
+common-help "${abbr}" "${_this}"
 
 # PS1 output for git profile
 git-ps1-color () {
@@ -66,7 +42,7 @@ git-origin () {
 # Returns current git branch of repo. 
 # git-call git-branch
 git-branch () {
-  local result="$(git status | grep 'On branch' | rev | cut -d ' ' -f 1 | rev )"
+  local result="$(git rev-parse --abbrev-ref HEAD )"
   echo "${result}"
 }
 
@@ -79,8 +55,8 @@ git-call () {
   local function="${1}"
   if [ ! -d "${dir}/.git" ]; then return 1; fi
   pushd "${dir}" > /dev/null
-  local account="$(git config --get remote.origin.url | grep -o -P '(?<=:).*?(?=/)')"
-  ssh-git-account "${account}"
+  local account="$(git config --get remote.origin.url | sed 's/.*://')"
+  ssh-git-account "${account%%/*}"
   local value="$(eval ${function})"
   local code=$?
   if [ ! -z "${value}" ]; then echo "${value}"; else return ${code}; fi
@@ -104,7 +80,7 @@ git-latest-main () {
 }
 
 # Update cached main branch for all repos in $GITHOME
-# git-latest-main [$GITHOME]
+# git-update-main [$GITHOME]
 git-update-main () {
   local git_dir="${1:-$GITHOME}"
   for d in $(dirname $(find ${git_dir} -type d -name ".git" )); do 
@@ -118,7 +94,7 @@ git-update-main () {
 git-clone-all () {
   local owner="${1}"
   if [ -z "${owner}" ]; then return 1; fi
-  if [ -n "$(shell-utilities 'gh' 'git' )" ]; then return 1; fi
+  if [ -n "$(common-utilities 'gh' 'git' )" ]; then return 1; fi
   if [ ! -d "${GITHOME}/${owner}" ]; then mkdir -p "${GITHOME}/${owner}"; fi
   pushd "${GITHOME}/${owner}" > /dev/null
   local repos=($(gh repo list "${owner}" | awk '{print $1}' ))

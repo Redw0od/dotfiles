@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-
 declare -a _sources
+
+sh_source () { 
+		eval 'script_source () { echo "${BASH_SOURCE[1]}"; }
+					script_origin () { echo "${BASH_SOURCE[*]}"; }' 
+}
+
 sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
-
-Time12a="\$(date +%H:%M)"
-PathShort="\w";
 declare -a UTILITIES
 UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk"
-"tail" "head" "edit" "less" "vim" "ps" "ping" "netstat" "shutdown" "tree" "tar"
+"tail" "head" "less" "vim" "ps" "ping" "netstat" "shutdown" "tar"
 "openssl" "grep" )
 
 #######################################################
@@ -33,8 +35,12 @@ if [ -f "${HOME}/.secrets.sh" ] ; then
 	source "${HOME}/.secrets.sh"
 fi
 
+if [ -f "${HOME}/.fun_common.sh" ]; then
+	source "${HOME}/.fun_common.sh"
+fi
+
 # Load all .fun_ scripts in home directory
-for script in $(/bin/ls -a ${HOME} | grep '^.fun_.*\.sh$' | grep -v overwrites ); do
+for script in $(/bin/ls -a ${HOME} | grep '^.fun_.*\.sh$' | grep -v 'overwrites\|common' ); do
 	source "${HOME}/${script}"
 done
 
@@ -42,10 +48,9 @@ if [ -f "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
 
-echo "Loaded shell files:"
-echo "${_sources[@]}"
 
-if [ "$(version-test ${BASH_VERSION%%(*} lt '4.0.0' )" ]; then
+version-test "${BASH_VERSION%%(*}" gt '4.0.0'
+if [ $? = 1 ]; then
 	echo "[WARN] These scripts may not work correctly on versions of bash"
 	echo "older than version 4. Your bash version: ${BASH_VERSION}"
 fi
@@ -60,13 +65,14 @@ export GPG_TTY=$(tty)
 export SSH_PROFILE=""
 export NPM_TOKEN=${SECRET_NPM_TOKEN}
 export GITLAB_TOKEN=${NPM_TOKEN}
+export GITLAB_NPM_TOKEN=${NPM_TOKEN}
 export KUBECONFIG="${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml"
 export TG_ROOT="${HOME}/git/platform/terraform-modules"
 export GOPATH="$HOME/go"
-export IFS_BACKUP=$IFS
 export LAST_STATUS=0
-export QUIET="true"
-
+export DEBUG_LOG="${HOME}/tmp/debug.log"
+# export VERBOSE=true
+# export DEBUG=true
 
 # Expand the history size
 export HISTFILESIZE=10000
@@ -102,8 +108,14 @@ export EDITOR=vim
 export VISUAL=vim
 
 # To have colors for ls and all grep commands such as grep, egrep and zgrep
+export COLOR_MODE="dark"
 export CLICOLOR=1
-export LS_COLORS='no=00:fi=00:di=01;34:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:*.xml=00;31:'
+export LS_COLORS='no=00:fi=00:di=01;38:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:*.xml=00;31:'
+if [ ${COLOR_MODE} = "dark" ]; then
+	LS_COLORS="${LS_COLORS}:di=01;36:"
+else
+	LS_COLORS="${LS_COLORS}:di=01;34:"
+fi
 alias grep="grep --color=auto"
 
 # Color for manpages in less makes manpages a little easier to read
@@ -115,13 +127,12 @@ export LESS_TERMCAP_so=$'\E[01;44;33m'
 export LESS_TERMCAP_ue=$'\E[0m'
 export LESS_TERMCAP_us=$'\E[01;32m'
 
-
-#######################################################
-# GENERAL ALIAS'S
-#######################################################
-# To temporarily bypass an alias, we preceed the command with a \
-# EG: the ls command is aliased, but to use the normal ls command you would type \ls
-
+exec {funlog}>"${DEBUG_LOG}"
+export funlog=$funlog
+if [ "${VERBOSE}" = "true" ]; then
+	echo "Loaded shell files:" >&$funlog
+	echo "${_sources[@]}" >&$funlog
+fi
 
 #######################################################
 # Set the ultimate amazing command prompt
@@ -234,3 +245,4 @@ __setprompt () {
 	PS4="${color[darkgray]}+${color[default]} "
 }
 PROMPT_COMMAND='__setprompt'
+
