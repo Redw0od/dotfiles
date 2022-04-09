@@ -1,12 +1,18 @@
 #!/usr/bin/env zsh
 declare -a _sources
+
+sh_source () { 
+		eval 'script_source () { echo "${(%):-%x}"; }
+			  script_origin () { echo ${funcfiletrace[*]%:*} }'
+}
+
 sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
 declare -a UTILITIES
 UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk" "notify-send"
-"tail" "head" "edit" "less" "vim" "ps" "ping" "netstat" "shutdown" "tree" "tar"
+"tail" "head" "less" "vim" "ps" "ping" "netstat" "shutdown" "tar"
 "openssl" "grep" )
 
 #######################################################
@@ -44,10 +50,11 @@ export GPG_TTY=$(tty)
 export SSH_PROFILE=""
 export NPM_TOKEN=${SECRET_NPM_TOKEN}
 export GITLAB_TOKEN=${NPM_TOKEN}
+export GITLAB_NPM_TOKEN=${NPM_TOKEN}
 export KUBECONFIG="${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml"
 export TG_ROOT="${HOME}/git/platform/terraform-modules"
 export GOPATH="$HOME/go"
-export IFS_BACKUP=$IFS
+export LAST_STATUS=0
 
 
 # Expand the history size
@@ -128,11 +135,11 @@ __setprompt () {
 	fi
 
 	# Date
-	PS1+="${color[darkgray]}($(set-color 196)$(date +%a) $(set-color 208)$(date +%b-'%-d')" # Date
-	PS1+=" $(set-color 220) $(date +'%-I':%M:%S%P)${color[darkgray]})-" # Time
+	PS1+="${color[darkgray]}($(set_color 196)$(date +%a) $(set_color 208)$(date +%b-'%-d')" # Date
+	PS1+=" $(set_color 220) $(date +'%-I':%M:%S%P)${color[darkgray]})-" # Time
 
 	# CPU
-	PS1+="($(set-color 112)CPU $(set-color 34)$(cpu)%"
+	PS1+="($(set_color 112)CPU $(set_color 34)$(cpu)%"
 
 	# Jobs
 	PS1+="${color[darkgray]}:${color[green]}\j"
@@ -141,7 +148,7 @@ __setprompt () {
 	# PS1+="\[${color[darkgray]}\]:\[${color[green]}\]Net $(awk 'END {print NR}' /proc/net/tcp)"
 
 	PS1+="${color[darkgray]})-"
-	PS1+="($(set-color 24)vault${color[gray]}[$(vault-ps1-color)${color[gray]}]${color[darkgray]})-"
+	PS1+="($(set_color 24)vault${color[gray]}[$(vault_ps1_color)${color[gray]}]${color[darkgray]})-"
 
 	PS1+="(${color[teal]}aws${color[gray]}[$(aws-ps1-color)${color[gray]}]${color[darkgray]})-"
 

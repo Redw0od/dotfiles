@@ -127,8 +127,8 @@ create-db () {
 psql-connect () {
   local host="${1}"
   local username="${2:-respond}"
-  local password=${3:-$(vault-rds-lookup)}
-  export PGPASSWORD=${password}
+  local password=${3:-${PGPASSWORD}}
+  export PGPASSWORD=${password:-$(vault_rds_lookup)}
   psql -U ${username} -h ${host} -d ${username}
 }
 
@@ -197,7 +197,7 @@ psql-grant-table-access () {
     echo "GRANT ${acl:-ALL} ON \"${table}\" IN \"${schema:-PUBLIC}\" TO \"${db_username}\";"
 }
 
- # vault-profile legacy
+ # vault_profile legacy
  # local pass=$(vault read ${VAULT_PATH}/shared_context/secret/rds/ | awk /'password/ {print $2}' 2> /dev/null)
 psql-query-shared () {
   local query="${1}"

@@ -9,7 +9,7 @@ abbr='ssh'
 # Call with a function's name for more information
 eval "${abbr}-help () {
   local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
+  local func_names=\"\$(cat ${_this} | grep '^${abbr}.*()' | awk '{print \$1}')\"
   if [ -z \"\${func}\" ]; then
     echo \"Helpful Elasticsearch functions.\"
     echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
@@ -60,6 +60,7 @@ ssh-start-agent () {
 # Load all SSH keys in ~/.ssh subfolder into ssh-agent
 ssh-load-keys () {
 	local folder="${HOME}/.ssh/${1}"
+	local filter="${2}"
 	if [ "${SSH_PROFILE}" != "${1}" ]; then
 		if [ ! -d "${folder}" ];then
 			echo "SSH profile folder ${folder} doesn't exist"
@@ -74,6 +75,7 @@ ssh-load-keys () {
 	ssh-check-agent
 	local fingerprints=$(ssh-add -l 2> /dev/null | awk '{print $2}')
 	for object in ${folder}/*; do
+		if [[ -n "${filter}" ]] && [[ -z "$(echo ${object} | grep ${filter})" ]]; then continue; fi
 		if [[ -f ${object} ]] && [[ ! -z "$( head -n 1 ${object} | grep "PRIVATE KEY")" ]]; then
 			local fingerprint="$(ssh-keygen -lf ${object} | awk '{print $2}' )"
 			if [[ ! "${fingerprints[@]}" =~ "${fingerprint}" ]]; then

@@ -9,7 +9,7 @@ abbr='tg'
 # Call with a function's name for more information
 eval "${abbr}-help () {
   local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
+  local func_names=\"\$(cat ${_this} | grep '^${abbr}.*()' | awk '{print \$1}')\"
   if [ -z \"\${func}\" ]; then
     echo \"Helpful Elasticsearch functions.\"
     echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
@@ -36,6 +36,7 @@ eval "${abbr}-help () {
 }"
 
 # Set module source var for local modules
+# tgsource [path to repo] [module]
 tgsource () {
   export TG_SOURCE="--terragrunt-source $1/$2"
 }

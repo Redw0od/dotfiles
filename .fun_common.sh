@@ -6,7 +6,7 @@ _sources+=("$(basename ${_this})")
 UTILITIES+=("openssl" "tar" "bunzip" "rar" "unzip" "7z" "uncompress" "gunzip" "wget" "strace")
 
 # Returns Argument Name if not found in shell paths
-shell-utility-status () {
+shell_utility_status() {
 	local utility="${1}"
 	if [ -z "$(which ${utility})" ]; then
 		echo "${utility}"
@@ -14,25 +14,25 @@ shell-utility-status () {
 }
 
 # Report which utilities in an Array are not found in shell paths
-shell-utilities () {
+shell_utilities() {
     local programs=("$@")
 	local unique=($(array_unique "${programs[@]}"))
 	for program in "${unique[@]}"; do
-		if [ -n "$(shell-utility-status ${program})" ]; then
+		if [ -n "$(shell_utility_status ${program})" ]; then
 			echo "$program"
 		fi
 	done
 }
 
-shell-utility-check () {
+shell_utility_check() {
 	local utility="${1}"
-	if [ -n "$(shell-utility-status ${utility})" ]; then 
+	if [ -n "$(shell_utility_status ${utility})" ]; then 
 		echo "Missing command line utility: ${utility}"
 	fi
 }
 	   
 			  
-array_unique () {
+array_unique() {
 	local u_array=("$@")
 	declare -a s_array
 	for element in "${u_array[@]}"; do
@@ -44,8 +44,8 @@ array_unique () {
 }
 
 # Curl with bearer token
-# curl-bearer [url] [token]
-curl-bearer () {
+# curl_bearer [url] [token]
+curl_bearer() {
   local cURL="${1}"
   local cToken="${2}"
   if [ -z ${cURL} ]; then echo "need URL"; return;fi
@@ -54,13 +54,13 @@ curl-bearer () {
   curl -sk ${cURL} -H ${H1} -H "${H2}"
 }
 
-pause () {
+pause() {
 	read -s -n 1 -p "Press any key to continue . . ."
 	echo ""
 }
 
 
-cmd () {
+cmd() {
     local command="${1}"
     local wet="${2:-$DRY}"
     echos "${color[info]}${command}${color[default]}"
@@ -71,7 +71,7 @@ cmd () {
       echos "ERROR: $LAST_STATUS"; fi
 }
 
-echos () {
+echos() {
     local message="${1}"
     local escapes="${2}"
 	if [ ! "${QUIET}" = true ]; then
@@ -83,13 +83,21 @@ echos () {
 	fi
 }
 
-grep1 () {
+grep1() {
 	local text="${1}"
 	local field="\$${2:-1}"
 	grep "${text}" | awk '{print $1}'
 }
 
-quick-test () {
+jq_diff() {
+	local json_1="${1}"
+	local json_2="${2}"
+	diff \
+  <(echo "${json_1}" | jq -S 'def post_recurse(f): def r: (f | select(. != null) | r), .; r; def post_recurse: post_recurse(.[]?); (. | (post_recurse | arrays) |= sort)' ) \
+  <(echo "${json_2}" | jq -S 'def post_recurse(f): def r: (f | select(. != null) | r), .; r; def post_recurse: post_recurse(.[]?); (. | (post_recurse | arrays) |= sort)' )
+}
+
+quick_test() {
 	local test_condition="${1}"
 	#eval $(eval_test () { if [ "${test_condition}" ]; then echo "TRUE"; else echo "FALSE"; fi })
 	#eval_test
@@ -98,13 +106,13 @@ quick-test () {
 }
 
 # Generate randmon 32char string, takes length as argument
-randpw () {
+randpw() {
   local len=${1:-32}
   openssl rand -base64 $(( ${len} * 2 )) | tr -dc A-Za-z0-9 | head -c${len}
 }
 
 # Print Text with ASCII banner, takes width as second argument
-banner () {
+banner() {
   local width=${2:-80}
   local _c1=${3:-${color[banner]}}
   local _c2=${4:-${color[bannertext]}}
@@ -118,23 +126,23 @@ banner () {
 }
 
 # Extracts any archive(s) (if unp isn't installed)
-extract () {
-	local archive="$(resolve-relative-path ${1})"
+extract() {
+	local archive="$(resolve_relative_path ${1})"
 	local output=${2}
 	pushd ${output} > /dev/null
 	if [ -f $archive ] ; then
 		case $archive in
-			*.tar.bz2)	shell-utility-check "tar"; 		tar xjf $archive    ;;
-			*.tar.gz)	shell-utility-check "tar"; 		tar xzf $archive    ;;
-			*.bz2)		shell-utility-check "bunzip2"; 	bunzip2 $archive     ;;
-			*.rar)		shell-utility-check "rar"; 		rar x $archive       ;;
-			*.gz)		shell-utility-check "gunzip"; 	gunzip $archive      ;;
-			*.tar)		shell-utility-check "tar"; 		tar xf $archive     ;;
-			*.tbz2)		shell-utility-check "tar"; 		tar xjf $archive    ;;
-			*.tgz)		shell-utility-check "tar"; 		tar xzf $archive    ;;
-			*.zip)		shell-utility-check "unzip"; 	unzip -q $archive    ;;
-			*.Z)		shell-utility-check "uncompress"; uncompress $archive  ;;
-			*.7z)		shell-utility-check "7z"; 		7z x $archive        ;;
+			*.tar.bz2)	shell_utility_check "tar"; 		tar xjf $archive    ;;
+			*.tar.gz)	shell_utility_check "tar"; 		tar xzf $archive    ;;
+			*.bz2)		shell_utility_check "bunzip2"; 	bunzip2 $archive     ;;
+			*.rar)		shell_utility_check "rar"; 		rar x $archive       ;;
+			*.gz)		shell_utility_check "gunzip"; 	gunzip $archive      ;;
+			*.tar)		shell_utility_check "tar"; 		tar xf $archive     ;;
+			*.tbz2)		shell_utility_check "tar"; 		tar xjf $archive    ;;
+			*.tgz)		shell_utility_check "tar"; 		tar xzf $archive    ;;
+			*.zip)		shell_utility_check "unzip"; 	unzip -q $archive    ;;
+			*.Z)		shell_utility_check "uncompress"; uncompress $archive  ;;
+			*.7z)		shell_utility_check "7z"; 		7z x $archive        ;;
 			*)          echo "don't know how to extract '$archive'..." ;;
 		esac
 	else
@@ -143,7 +151,7 @@ extract () {
 	popd > /dev/null
 }
 
-resolve-relative-path () (
+resolve_relative_path() (
     # If the path is a directory, we just need to 'cd' into it and print the new path.
     if [ -d "$1" ]; then
         cd "$1" || return 1
@@ -164,7 +172,7 @@ resolve-relative-path () (
 )
 
 # Searches for text in all files in the current folder
-ftext () {
+ftext() {
 	# -i case-insensitive
 	# -I ignore binary files
 	# -H causes filename to be printed
@@ -176,7 +184,7 @@ ftext () {
 }
 
 # Copy file with a progress bar
-cpp () {
+cpp() {
 	set -e
 	strace -q -ewrite cp -- "${1}" "${2}" 2>&1 \
 	| awk '{
@@ -196,7 +204,7 @@ cpp () {
 }
 
 # Copy and go to the directory
-cpg () {
+cpg() {
 	if [ -d "$2" ];then
 		cp $1 $2 && cd $2
 	else
@@ -205,7 +213,7 @@ cpg () {
 }
 
 # Move and go to the directory
-mvg () {
+mvg() {
 	if [ -d "$2" ];then
 		mv $1 $2 && cd $2
 	else
@@ -214,13 +222,13 @@ mvg () {
 }
 
 # Create and go to the directory
-mkdirg () {
+mkdirg() {
 	mkdir -p $1
 	cd $1
 }
 
 # Goes up a specified number of directories  (i.e. up 4)
-up () {
+up() {
 	local d=""
 	limit=$1
 	for ((i=1 ; i <= limit ; i++))
@@ -235,12 +243,12 @@ up () {
 }
 
 # Returns the last 2 fields of the working directory
-pwdtail () {
+pwdtail() {
 	pwd|awk -F/ '{nlast = NF -1;print $nlast"/"$NF}'
 }
 
 # Show the current distribution
-distribution () {
+distribution() {
 	local dtype
 	# Assume unknown
 	dtype="unknown"
@@ -284,7 +292,7 @@ distribution () {
 }
 
 # Show the current version of the operating system
-ver () {
+ver() {
 	local dtype
 	dtype=$(distribution)
 
@@ -320,7 +328,7 @@ ver () {
 }
 
 # Automatically install the needed support files for this .bashrc file
-install_bashrc_support () {
+install_bashrc_support() {
 	local dtype
 	dtype=$(distribution)
 
@@ -354,7 +362,7 @@ install_bashrc_support () {
 }
 
 # Show current network information
-netinfo () {
+netinfo() {
 	local dtype=$(distribution)
 	local fmt="%-7s%s"
 	banner "Network Information"
@@ -378,13 +386,13 @@ netinfo () {
 
 # IP address lookup
 alias whatismyip="whatsmyip"
-whatsmyip () {
+whatsmyip() {
 	# External IP Lookup
 	echo "External IP: $(wget http://checkip.dyndns.org -O - -q | grep -Eo '([0-9]{1,3}[\.]){3}[0-9]{1,3}')"
 }
 
 # For some reason, rot13 pops up everywhere
-rot13 () {
+rot13() {
 	if [ $# -eq 0 ]; then
 		tr '[a-m][n-z][A-M][N-Z]' '[n-z][a-m][N-Z][A-M]'
 	else
@@ -393,14 +401,40 @@ rot13 () {
 }
 
 # Trim leading and trailing spaces (for scripts)
-trim () {
+trim() {
 	local var=$@
 	var="${var#"${var%%[![:space:]]*}"}"  # remove leading whitespace characters
 	var="${var%"${var##*[![:space:]]}"}"  # remove trailing whitespace characters
 	echo -n "$var"
 }
 
-version-test () {
+path_append() {
+	local new_path="${1}"
+	if [[ -z "$(echo ${PATH} | sed 's/:/\n/g' | grep "^${new_path}$")" ]]; then
+		export PATH="${PATH+$PATH:}${new_path}"
+	fi
+}
+
+path_prepend() {
+	local new_path="${1}"
+	if [[ -z "$(echo ${PATH} | sed 's/:/\n/g' | grep "^${new_path}$")" ]]; then
+		export PATH="${new_path}${PATH+:$PATH}"
+	fi
+}
+
+path_reset() {
+	local new_path=""
+	if [[ -f /etc/paths ]]; then
+		while read -r; do
+			new_path="${new_path:+$new_path:}${REPLY}"
+		done < /etc/paths
+	else
+		new_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	fi
+	export PATH="${new_path}"
+}
+
+version_test() {
 	local test_version="${1}"
 	local condition="${2}"
 	local condition_version="${3}"
@@ -417,28 +451,28 @@ version-test () {
 }
 
 # Make directory stack manipulations quiet
-pushd () {
+pushd() {
 	if [ -n "$(echo $@ | grep -w '\-q')" ]; then command pushd "$@" > /dev/null;
 	else command pushd "$@"; fi
 }
 
-popd () {
+popd() {
 	if [ -n "$(echo $@ | grep -w '\-q')" ]; then command popd "$@" > /dev/null;
 	else command popd "$@"; fi
 }
 
 # Show all currently defined arrays in your shell
-array-list () {
+array_list() {
 	declare -a | cut -d "=" -f 1 | cut -d ' ' -f 3
 }
 
 # Show all currently defined associative arrays in your shell
-array-map-list () {
+array_map_list() {
 	declare -A | cut -d "=" -f 1 | cut -d ' ' -f 3
 }
 
 # Display all values stored in an array
-array-dump () {
+array_dump() {
 	unset -n array_name array_values
 	local array_name=${1}
 	local type="$(declare -p ${array_name} | cut -d ' ' -f 2)"
@@ -459,7 +493,7 @@ if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_o
 	source "${HOME}/.fun_overwrites.sh"
 fi
 
-jobs-pause () {
+jobs_pause () {
 	local job_list=$(jobs | grep -v Done | wc -l | awk '{print $1}')
 	sleep 5s
 	while [ -n "${job_list}" ] && [ ${job_list} != 0 ]; do

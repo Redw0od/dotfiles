@@ -66,7 +66,7 @@ git-origin () {
 # Returns current git branch of repo. 
 # git-call git-branch
 git-branch () {
-  local result="$(git status | grep 'On branch' | rev | cut -d ' ' -f 1 | rev )"
+  local result="$(git rev-parse --abbrev-ref HEAD )"
   echo "${result}"
 }
 
@@ -79,8 +79,8 @@ git-call () {
   local function="${1}"
   if [ ! -d "${dir}/.git" ]; then return 1; fi
   pushd "${dir}" > /dev/null
-  local account="$(git config --get remote.origin.url | grep -o -P '(?<=:).*?(?=/)')"
-  ssh-git-account "${account}"
+  local account="$(git config --get remote.origin.url | sed 's/.*://')"
+  ssh-git-account "${account%%/*}"
   local value="$(eval ${function})"
   local code=$?
   if [ ! -z "${value}" ]; then echo "${value}"; else return ${code}; fi
@@ -104,7 +104,7 @@ git-latest-main () {
 }
 
 # Update cached main branch for all repos in $GITHOME
-# git-latest-main [$GITHOME]
+# git-update-main [$GITHOME]
 git-update-main () {
   local git_dir="${1:-$GITHOME}"
   for d in $(dirname $(find ${git_dir} -type d -name ".git" )); do 
@@ -118,7 +118,7 @@ git-update-main () {
 git-clone-all () {
   local owner="${1}"
   if [ -z "${owner}" ]; then return 1; fi
-  if [ -n "$(shell-utilities 'gh' 'git' )" ]; then return 1; fi
+  if [ -n "$(shell_utilities 'gh' 'git' )" ]; then return 1; fi
   if [ ! -d "${GITHOME}/${owner}" ]; then mkdir -p "${GITHOME}/${owner}"; fi
   pushd "${GITHOME}/${owner}" > /dev/null
   local repos=($(gh repo list "${owner}" | awk '{print $1}' ))

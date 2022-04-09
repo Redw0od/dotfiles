@@ -32,13 +32,13 @@ fi
 
 # set PATH so it includes user's private bin if it exists
 if [ -d "${HOME}/bin" ] ; then
-    PATH="${HOME}/bin:${PATH}"
+    path_prepend "${HOME}/bin"
 fi
 if [ -d "${GOROOT}/bin" ] ; then
-    PATH="${GOROOT}/bin:${PATH}"
+    path_prepend "${GOROOT}/bin"
 fi
 if [ -d "${GOPATH}/bin" ] ; then
-    PATH="${GOPATH}/bin:${PATH}"
+    path_prepend "${GOPATH}/bin"
 fi
 
 if [ "$(distribution)" = "darwin" ]; then
@@ -60,10 +60,12 @@ fi
 
 echo "Shell scripts depend on many additional tools."
 echo "This is a list of tools used in these functions that are missing on your system:"
-shell-utilities "${UTILITIES[@]}"
+shell_utilities "${UTILITIES[@]}"
 echo ""
 
 aws-check-binary
 kube-check-binary
 tg-check-binary
-vault-check-binary
+vault_check_binary
+# Created by `pipx` on 2022-03-15 00:01:29
+path_append "/home/mike/.local/bin"

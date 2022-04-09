@@ -5,7 +5,7 @@ _sources+=("$(basename ${_this})")
 
 alias tg='terragrunt'
 alias tgplan='rm -rf .terragrunt-cache;tg plan'
-alias vt='vault-profile'
+alias vt='vault_profile'
 alias k8s='kube-profile'
 alias k='kube-safe-apply'
 

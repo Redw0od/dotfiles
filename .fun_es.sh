@@ -7,18 +7,18 @@ UTILITIES+=("echo" "awk" "grep" "cat" "curl" "base64" "tr" "printf" "wc" "sort" 
 abbr='es'
 # Gives details on functions in this file
 # Call with a function's name for more information
-eval "${abbr}-help () {
+eval "${abbr}-help() {
   local func=\"\${1}\"
   local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
   if [ -z \"\${func}\" ]; then
     echo \"Helpful Elasticsearch functions.\"
     echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
-    echo \"\${func_names[@]}\"
+    for f in \${func_names}; do echo \${f} | sed 's/()//g'; done
     return
   fi
   cat \"${_this}\" | \
   while read line; do
-		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
+		if [ -n \"\$(echo \"\${line}\" | grep \"\${func}*()\" )\" ]; then
       banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
       echo -e \"\${comment}\"
     fi
@@ -37,7 +37,7 @@ eval "${abbr}-help () {
 
 # Curl Elasticsearch with API key
 # es-curl [url] [ApiKey]
-es-curl () {
+es-curl() {
   local cURL="${1}"
   local cAPI="${2}"
   if [ -z ${cURL} ]; then echo "need URL"; return 1;fi
@@ -51,7 +51,7 @@ es-curl () {
 
 # Curl Kibana with API key
 # es-kb-get [cluster] [api endpoint]
-es-kb-get () {
+es-kb-get() {
   local cluster="${1}"
   local endpoint="${2}"
   local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
@@ -59,9 +59,23 @@ es-kb-get () {
   es-curl ${eURL} ${eKEY}
 }
 
+# Curl Kibana with API key
+# es-kb-post [cluster] [api endpoint] [data]
+es-kb-post() {
+  local cluster="${1}"
+  local endpoint="${2}"
+  local eDATA="${3}"
+  local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
+  local eURL="${KIBANA[${cluster}]}${endpoint}"
+  local H1="Content-Type: application/json"
+  local H2="Authorization: ApiKey ${eKEY}"
+  local H3="kbn-xsrf: true"
+  curl -sk -XPOST ${eURL} -H "${H1}" -H "${H2}" -H "${H3}" -d"${eDATA}"
+}
+
 # Curl Elasticsearch with API key
 # es-get [cluster] [api endpoint]
-es-get () {
+es-get() {
   local cluster="${1}"
   local endpoint="${2}"
   local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
@@ -71,7 +85,7 @@ es-get () {
 
 # Curl PUT Elasticsearch with API key
 # es-put [cluster] [api endpoint] [data]
-es-put () {
+es-put() {
   local cluster="${1}"
   local endpoint="${2}"
   local eDATA="${3}"
@@ -82,9 +96,21 @@ es-put () {
   curl -sk -XPUT ${eURL} -H "${H1}" -H "${H2}" -d "${eDATA}"
 }
 
+# Curl DELETE Elasticsearch with API key
+# es-delete [cluster] [api endpoint]
+es-delete() {
+  local cluster="${1}"
+  local endpoint="${2}"
+  local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
+  local eURL="${ELASTIC[${cluster}]}${endpoint}"
+  local H1="Content-Type: application/json"
+  local H2="Authorization: ApiKey ${eKEY}"
+  curl -sk -XDELETE ${eURL} -H "${H1}" -H "${H2}"
+}
+
 # Curl POST Elasticsearch with API key
 # es-post [cluster] [api endpoint] [data]
-es-post () {
+es-post() {
   local cluster="${1}"
   local endpoint="${2}"
   local eDATA="${3}"
@@ -97,7 +123,7 @@ es-post () {
 
 # Curl PUT Elasticsearch with User and Password
 # es-put-user [cluster] [api endpoint] [data] [user:pass]
-es-put-user () {
+es-put-user() {
   local cluster="${1}"
   local endpoint="${2}"
   local eDATA="${3}"
@@ -109,20 +135,20 @@ es-put-user () {
 
 # Curl POST Elasticsearch with User and Password
 # es-post-user [cluster] [api endpoint] [data] [user:pass]
-es-post-user () {
+es-post-user() {
   local cluster="${1}"
   local endpoint="${2}"
   local eDATA="${3}"
   local auth="${4}"
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
-  echo "curl -u \"${auth}\" -k -XPOST ${eURL} -H \"${H1}\" -d \"${eDATA}\""
-  curl -u "${auth}" -k -XPOST ${eURL} -H "${H1}" -d "${eDATA}"
+  #echo "curl -u \"${auth}\" -k -XPOST ${eURL} -H \"${H1}\" -d \"${eDATA}\""
+  curl -u "${auth}" -sk -XPOST ${eURL} -H "${H1}" -d "${eDATA}"
 }
 
 # Curl POST Elasticsearch with User and Password
 # es-create-apikey <cluster> <user:pass> [key_name]
-es-create-apikey () {
+es-create-apikey() {
   local cluster="${1}"
   local auth="${2}"
   local name="${3:-curl}"
@@ -132,7 +158,7 @@ es-create-apikey () {
 
 # Curl POST Elasticsearch with User and Password
 # es-create-apikey-restricted <cluster> <user:pass> <json_policy> 
-es-create-apikey-restricted () {
+es-create-apikey-restricted() {
   local cluster="${1}"
   local auth="${2}"
   local policy="${3}"
@@ -143,7 +169,7 @@ es-create-apikey-restricted () {
 
 
 # Report list of clusters
-es-list-clusters () {
+es-list-clusters() {
   if [ -z "${ELASTIC[*]}" ]; then 
     echo "No clusters loaded. Create array of clusters with:\n \
     declare -A ELASTIC\n    ELASITC[<CLUSTER_NAME>]=<URL>"
@@ -157,7 +183,7 @@ es-list-clusters () {
 
 # List users on cluster
 # es-list-users <cluster> 
-es-list-users () {
+es-list-users() {
   local cluster="${1}"
   local reserved="${2:-false}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -168,9 +194,269 @@ es-list-users () {
   fi
 }
 
-# Report Cluster shard or node status
+# List aliases on cluster, similar to list indices
+# es-list-aliases <cluster> 
+es-list-aliases() {
+  local cluster="${1}"
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  local indices=$(es-get ${cluster} /_cat/aliases?h=index | sort -u )
+  printf "%s\n" ${indices[@]}
+}
+
+# List all indices on cluster
+# es-list-indices <cluster> 
+es-list-indices() {
+  local cluster="${1}"
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  local indices=$(es-get ${cluster} /_cat/indices?h=index | sort -u )
+  printf "%s\n" ${indices[@]}
+}
+
+
+# Get index creation date
+# es-get-index-creation <cluster> <index>
+es-get-index-creation() {
+  local cluster="${1}"
+  local index="${2}"
+  if [ -z ${cluster} ] || [ -z ${index} ] ; then echo "Cluster Nickname Required."; return; fi
+  local creation_date=$(es-get "${cluster}" "/${index}" | jq -r '.[].settings.index.creation_date')
+  printf "%s\n" $((${creation_date}/1000))
+}
+
+# Get index size in kilobytes
+# es-get-index-size <cluster> <index>
+es-get-index-size() {
+  local cluster="${1}"
+  local index="${2}"
+  if [ -z ${cluster} ] || [ -z ${index} ] ; then echo "Cluster Nickname and Index Name Required."; return; fi
+  local bytes=$(es-get "${cluster}" "/${index}/_stats" | jq -r '._all.primaries.store.size_in_bytes')
+  printf "%s\n" $((${bytes}/1024))
+}
+
+# Get index size in kilobytes
+# es-get-index-size <cluster> <index> [size kb limit] [minimum age days]
+es-get-task() {
+  local cluster="${1}"
+  local task_id="${2}"
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  local status=$(es-get ${cluster} /_tasks/${task_id} )
+  echo "${status}"
+}
+
+es-delete-retry() {
+  local cluster="${1}"
+  local index="${2}"
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  while [[ -n "$(es-delete "${cluster}" "/${index}" | jq -r '.error[]' 2> /dev/null )" ]]; do
+    echo "Error while deleting ${index}"
+    sleep 10
+  done
+}
+
+
+es-set-ilm-date() {
+  local cluster="${1}"
+  local index="${2}"
+  local date="${3}"
+  local json='{
+    "settings": {
+        "index": {
+          "lifecycle.origination_date": '${date}'
+        }
+    }}'
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  es-put "${cluster}" "/${index}/_settings" "${json}"
+}
+
+# Get index size in kilobytes
+# es-get-index-size <cluster> <index> [size kb limit] [minimum age days]
+es-reduce-index() {
+  local cluster="${1}"
+  local indicies=(${2})
+  local index_name="${3:-${indicies[0]}-reindex}"
+  local index_json="${4:-$(echo ${INDEX_FILTER} | jq)}"
+  local index_created=$(es-get-index-creation ${cluster} ${indicies[0]})
+  local index task
+  local waiting="true"
+  local json='{
+    "conflicts": "proceed",
+    "source": {
+        "index": [ ]
+    },
+    "dest": {
+        "index": "name",
+        "op_type": "create"
+    }}'
+  if [ -z ${cluster} ] || [ -z ${indicies} ] ; then echo "Cluster Nickname and Index Pattern Required."; return; fi
+  echo "index_name: ${index_name}"
+  json=$(echo ${json} | jq '.dest.index = "'${index_name}'"')
+  for index in ${indicies[@]}; do
+    echo "index: ${index}"
+    json=$(echo ${json} | jq '.source.index += ["'${index}'"]')
+  done
+    echo "json: ${json}"
+  if [[ -n "${index_json}" ]]; then
+    json=$(echo "${json}" "${index_json}" | jq -s '.[0] * .[1]')
+  fi
+  echo "es-post \"${cluster}\" /_reindex?wait_for_completion=false \"${json}\""
+  local task=$(es-post "${cluster}" '/_reindex?wait_for_completion=false' "${json}")
+  echo "task: ${task}"
+  echo -n "Waiting."
+  while [[ "${waiting}" == "true" ]]; do
+    result=$(es-get "${cluster}" "/_tasks?actions=*reindex" | jq -r '.nodes[]')
+    if [[ -z "${result}" ]]; then
+      waiting="false"
+    fi
+    sleep 30
+    echo -n "."
+  done
+  echo ""
+  es-set-ilm-date "${cluster}" "${index}" ${index_created}
+  if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then 
+    for index in ${indicies[@]}; do
+      es-delete-retry ${cluster} ${index}
+    done
+  else
+    echo "Error!"
+    echo ${result} | jq '.failures[]'
+  fi
+}
+
+
+# Compact indicies to reduce shard counts
+# es-compact-index <cluster> <index> [size kb limit] [minimum age days]
+es-reduce-indicies() {
+  local cluster="${1}"
+  local index_pattern="${2}"
+  local today=$(date +%s)
+  local min_age=$((${4:-7}*24*60*60))
+  local index_created index_age index_size  index
+  local index_group=()
+  if [ -z ${cluster} ] || [ -z ${index_pattern} ] ; then echo "Cluster Nickname and Index Pattern Required."; return; fi
+  local index_list=$(es-list-indices ${cluster} | grep "${index_pattern}" | grep -v reindex )
+  for index in ${index_list}; do
+    index_created=$(es-get-index-creation ${cluster} ${index})
+    index_age=$((today-index_created))
+    echo -n "index: ${index}, today: ${today}, min_age: ${min_age}, created: ${index_created}; age: ${index_age}"
+    if [ ${index_age} -lt ${min_age} ] ; then echo "";continue; fi
+    echo -n ", $((index_age/(24*60*60))) days old"
+    index_size=$(es-get-index-size "${cluster}" "${index}")
+
+    echo ", size: ${index_size}, Creating New Index: "
+    es-reduce-index "${cluster}" "${index}" &
+    while (( (( $(jobs -p | wc -l) )) >= 12 ));do 
+      echo -n "."
+      sleep 120
+    done
+    sleep 5
+    echo ""
+  done
+}
+
+
+# Get index size in kilobytes
+# es-get-index-size <cluster> <index> [size kb limit] [minimum age days]
+es-merge-indicies() {
+  local cluster="${1}"
+  local indicies=(${2})
+  local index_name="${3:-${indicies[0]}-reindexed}"
+  local index_filter=${4:-$INDEX_FILTER}
+  local index task
+  local waiting="true"
+  local json='{
+    "conflicts": "proceed",
+    "source": {
+        "index": [ ]
+    },
+    "dest": {
+        "index": "name",
+        "op_type": "create"
+    }}'
+  if [ -z ${cluster} ] || [ -z ${index_pattern} ] ; then echo "Cluster Nickname and Index Pattern Required."; return; fi
+  json=$(echo ${json} | jq '.dest.index = "'${index_name}'"')
+  for index in ${indicies[@]}; do
+    json=$(echo ${json} | jq '.source.index += ["'${index}'"]')
+  done
+  if [[ -n "${index_filter}" ]]; then
+    json=$(echo ${json} | jq '.source.query = "${index_filter}"')
+  fi
+  echo "es-post \"${cluster}\" /_reindex?wait_for_completion=false \"${json}\""
+  return
+  local task=$(es-post "${cluster}" '/_reindex?wait_for_completion=false' "${json}")
+  echo "task: ${task}"
+  echo -n "Waiting."
+  while [[ "${waiting}" == "true" ]]; do
+    result=$(es-get "${cluster}" "/_tasks?actions=*reindex" | jq -r '.nodes[]')
+    if [[ -z "${result}" ]]; then
+      waiting="false"
+    fi
+    sleep 30
+    echo -n "."
+  done
+  echo ""
+  if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then 
+    for index in ${indicies[@]}; do
+      es-delete-retry ${cluster} ${index}
+    done
+  else
+    echo "Error!"
+    echo ${result} | jq '.failures[]'
+  fi
+}
+
+# Compact indicies to reduce shard counts
+# es-compact-index <cluster> <index> [size kb limit] [minimum age days]
+es-compact-index() {
+  local cluster="${1}"
+  local index_pattern="${2}"
+  local max_size="${3:-$((50*1024*1024))}"
+  #local max_size="${3:-40000}"
+  local min_age=$((${4:-90}*24*60*60))
+  local today=$(date +%s)
+  local index_created index_age index_size reindex_size index
+  local index_group=()
+  if [ -z ${cluster} ] || [ -z ${index_pattern} ] ; then echo "Cluster Nickname and Index Pattern Required."; return; fi
+  local index_list=$(es-list-indices ${cluster} | grep "${index_pattern}")
+  for index in ${index_list}; do
+    index_created=$(es-get-index-creation ${cluster} ${index})
+    index_age=$((today-index_created))
+    echo -n "index: ${index}, today: ${today}, min_age: ${min_age}, created: ${index_created}; age: ${index_age}"
+    if [ ${index_age} -lt ${min_age} ] ; then echo "";continue; fi
+    echo -n ", $((index_age/(24*60*60))) days old"
+    index_size=$(es-get-index-size "${cluster}" "${index}")
+
+    if [ ${index_size} -gt ${max_size} ]; then 
+      echo ", OVERSIZED"
+      reindex_size=0
+      index_group=()
+      continue
+    fi
+
+    if [ $((index_size+reindex_size)) -gt ${max_size} ]; then 
+      if [ ${#index_group[@]} -gt 1 ]; then
+        echo ", size: ${index_size}, Creating New Index: , size:${reindex_size}"
+        es-merge-indicies "${cluster}" "${index_group[*]}"
+        return
+      else
+        echo ", size: ${index_size}, Skip previous index"
+      fi
+      reindex_size=${index_size}
+      index_group=("${index}")
+      continue
+    fi
+    reindex_size=$((reindex_size+index_size))
+    echo ", size: ${index_size}, reindex size: ${reindex_size}"
+    index_group+=("${index}")
+  done
+  if [ ${#index_group[@]} -gt 0 ]; then
+    echo "Creating New Index: size:${reindex_size}"
+    es-merge-indicies "${cluster}" "${index_group[*]}"
+  fi
+}
+
+# Report user account details
 # es-report-users <cluster> 
-es-report-users () {
+es-report-users() {
   local cluster="${1}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
   local users_json=($(es-get ${cluster} /_security/user | jq -r '.[] | @base64'))
@@ -192,7 +478,7 @@ es-report-users () {
 
 # Report Cluster shard or node status
 # es-cluster-report [cluster] [shards|shardstats|nodes]
-es-cluster-report () {
+es-cluster-report() {
   local cluster="${1}"
   local query="${2}"
   if [ "${query}" == "shards" ]; then
@@ -215,7 +501,7 @@ es-cluster-report () {
 
 # Report master ES instance recognized by each node
 # es-query-master [nodes[@]]
-es-query-master () {  
+es-query-master() {  
   local eKEY=$(echo -n "${API_LEGION}" | base64 | tr -d \\r)
   local nodes=${1}
   if [ ! -z "${nodes}" ]; then
@@ -234,25 +520,57 @@ es-query-master () {
 
 # Get a list of index templates that match a pattern
 # es-get-templates-names < CLUSTER_NAME > [index*]
-es-get-template-names () {
+es-get-template-names() {
   local cluster="${1}"
   local pattern="${2}"
-  es-get "${cluster}" "/_cat/templates/${pattern}" | awk '{print $1}'  
+  es-get "${cluster}" "/_cat/templates/${pattern}" | awk '{print $1}' | sort -u 
+}
+
+# Get a list of index templates that match a pattern
+# es-get-index-templates-names < CLUSTER_NAME > 
+es-get-index-template-names() {
+  local cluster="${1}"
+  es-get "${cluster}" "/_index_template" | jq -r '.index_templates[].name' | sort -u 
+}
+
+# Get a list of index templates that match a pattern
+# es-get-component-templates-names < CLUSTER_NAME > 
+es-get-component-template-names() {
+  local cluster="${1}"
+  es-get "${cluster}" "/_component_template" | jq -r '.component_templates[].name' | sort -u   
 }
 
 # Get a current template json
-# TEMPLATES=$(es-query-templates ${CLUSTER_NAME} cases*)
+# TEMPLATES=$(es-get-template-names ${CLUSTER_NAME} cases*)
 # es-get-template < CLUSTER_NAME > < template_name >
-es-get-template () {
+es-get-template() {
   local cluster="${1}"
   local template="${2}"
   es-get "${cluster}" "/_template/${template}"  
 }
 
+# Get a current template json
+# TEMPLATES=$(es-get-index-template-names ${CLUSTER_NAME} | grep cases )
+# es-get-index-template < CLUSTER_NAME > < template_name >
+es-get-index-template() {
+  local cluster="${1}"
+  local template="${2}"
+  es-get "${cluster}" "/_index_template/${template}" | jq -r '.index_templates[].index_template' 
+}
+
+# Get a current template json
+# TEMPLATES=$(es-get-component-template-names ${CLUSTER_NAME} | grep cases )
+# es-get-component-template < CLUSTER_NAME > < template_name >
+es-get-component-template() {
+  local cluster="${1}"
+  local template="${2}"
+  es-get "${cluster}" "/_component_template/${template}" | jq -r '.component_templates[].component_template' 
+}
+
 # Get a current templates lifecycle policy
 # for name in ${TEMPLATES[@]}; do es-get-template-lifecycle ${CLUSTER_NAME} "${name}" >> /tmp/${CLUSTER_NAME}-template-policies & done
 # es-get-template-lifecycle < CLUSTER_NAME > < template_name >
-es-get-template-lifecycle () {
+es-get-template-lifecycle() {
   local cluster="${1}"
   local template="${2}"
   local policy="$(es-get "${cluster}" "/_template/${template}" | jq -r '.[].settings.index.lifecycle.name' )"
@@ -263,7 +581,7 @@ es-get-template-lifecycle () {
 # INDICES=$(cat /tmp/${CLUSTER_NAME}-template-policies | grep -v '^ ' | awk '{print $2}' | grep -v '^\.' | sort)
 # for name in ${INDICES[@]}; do es-set-template-tier ${CLUSTER_NAME} "${name}" ; done
 # es-set-template-tier  < CLUSTER_NAME > < template_name > [data_warm]
-es-set-template-tier () {
+es-set-template-tier() {
   local cluster="${1}"
   local template="${2}"
   local tier="${3:-data_hot}"
@@ -276,7 +594,7 @@ es-set-template-tier () {
 
 # List all role mappings on the cluster
 # es-list-role-mappings <cluster_nickname>
-es-list-role-mappings () {
+es-list-role-mappings() {
   local cluster="${1}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
   es-get "${cluster}" '/_security/role_mapping' | jq -r 'keys[]'
@@ -284,7 +602,7 @@ es-list-role-mappings () {
 
 # Get specific role mapping
 # es-get-role-mapping <cluster_nickname> <role_name>
-es-get-role-mapping () {
+es-get-role-mapping() {
   local cluster="${1}"
   local mapping="${2}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -292,9 +610,9 @@ es-get-role-mapping () {
   es-get ${cluster} "/_security/role_mapping/${mapping}"
 }
 
-# Get specific role mapping
+# Disable specific role mapping
 # es-disable-role-mapping <cluster_nickname> <role_name>
-es-disable-role-mapping () {
+es-disable-role-mapping() {
   local cluster="${1}"
   local mapping="${2}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -303,9 +621,38 @@ es-disable-role-mapping () {
   es-put ${cluster} "/_security/role_mapping/${mapping}" "${role_json}"
 }
 
+# Get Elasticsearch role
+# es-get-role <cluster_nickname> <role_name>
+es-get-role() {
+  local cluster="${1}"
+  local role="${2}"
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  if [ -z ${role} ]; then echo "Name of Role Required."; return; fi
+  es-get "${cluster}" "/_security/role/${role}" 
+}
+
+# Push Elasticsearch user role
+# es-put-role <cluster_nickname> <role_json_file> [force]
+es-put-role() {
+  local cluster="${1}"
+  local file="${2}"
+  local overwrite="${3}"
+  local filename="${file##*/}"
+  local json="$(jq -r '.[]' ${file})"
+  if [[ -n "$(es-get-role ${cluster} ${filename} | jq .[])" ]]; then
+    if [[ ${overwrite} != "force" ]]; then
+      echo "Role already exists."
+      return
+    fi
+    es-post "${cluster}" "/_security/role/${filename%%\.*}" "$(echo ${json})"
+  else
+    es-put "${cluster}" "/_security/role/${filename%%\.*}" "$(echo ${json})"
+  fi
+}
+
 # Get specific user details from Elastic server
 # es-get-user <cluster_nickname> <user_name>
-es-get-user () {
+es-get-user() {
   local cluster="${1}"
   local username="${2}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -316,7 +663,7 @@ es-get-user () {
 # Create New Elastic User
 # roles must be a string including quotes and commas, eg. '"new","user","roles"'
 # es-create-user <cluster_nickname> <user_name> <user_password> [roles] [email] [full_name]
-es-create-user () {
+es-create-user() {
   local cluster="${1}"
   local username="${2}"
   local password="${3}"
@@ -336,26 +683,136 @@ es-create-user () {
   es-put ${cluster} "/_security/user/${username}" "${user_json}"
 }
 
-es-dump-all-configs () {
+
+# Dump Elasticsearch configurations
+# es-dump-all-configs <cluster_nickname> <output_folder> 
+es-dump-all-configs() {
   local cluster=${1}
   local folder=${2}
   mkdir -p "${folder}/index_templates"
   for p in $(es-get ${cluster} /_template | jq -r 'keys[]');do echo "template: $p";es-get "${cluster}" "/_template/$p" > "${folder}/index_templates/$p.json" ;done
+  mkdir -p "${folder}/aliases"
+  es-get ${cluster} /_cat/aliases | awk '{print $1}' | grep -v '^\.' | sort -u > "${folder}/aliases/aliases"
   mkdir -p "${folder}/ilm"
   for p in $(es-get ${cluster} /_ilm/policy | jq -r 'keys[]');do echo "ilm: $p";es-get "${cluster}" "/_ilm/policy/$p" > "${folder}/ilm/$p.json" ;done
   mkdir -p "${folder}/index_patterns"
   for p in $(es-kb-get ${cluster} /api/saved_objects/_find?type=index-pattern | jq -r '.saved_objects[] | @base64');do 
     title=$(echo "$p"| base64 --decode | jq -r .attributes.title); 
     echo "index_pattern: ${title}"
-    echo "$p" | base64 --decode | jq . > "${folder}/index_patterns/${title}.json"
+    echo "$p" | base64 --decode | jq . > "${folder}/index_patterns/${title%\*}.json"
   done
   mkdir -p "${folder}/roles"
   for p in $(es-get ${cluster} /_security/role | jq -r 'keys[]');do echo "role: $p";es-get "${cluster}" "/_security/role/$p" > "${folder}/roles/$p.json" ;done
   mkdir -p "${folder}/users"
   for p in $(es-get ${cluster} /_security/user | jq -r 'keys[]');do echo "user: $p";es-get "${cluster}" "/_security/user/$p" > "${folder}/users/$p.json" ;done
   mkdir -p "${folder}/snapshots"
-  for p in $(es-get ${cluster} /_snapshot | jq -r 'keys[]');do echo "snapshot: $p";es-get "${cluster}" "/_snapshot/$p" > "${folder}/snapshot_repo/$p.json" ;done
+  for p in $(es-get ${cluster} /_snapshot | jq -r 'keys[]');do echo "snapshot: $p";es-get "${cluster}" "/_snapshot/$p" > "${folder}/snapshots/$p.json" ;done
 }
+
+# Push Elasticsearch index-patterns
+# es-put-index-pattern <cluster_nickname> <input_json_file> 
+es-put-index-pattern() {
+  local cluster="${1}"
+  local file="${2}"
+  local title="$(jq -r '.attributes.title' ${file})"
+  local timeFieldName="$(jq -r '.attributes.timeFieldName' ${file})"
+  #local fields="$(jq '.attributes.fields | fromjson |.' ${file})"
+  local json="{\"index_pattern\": { \"title\" : \"${title}\",\"timeFieldName\" : \"${timeFieldName}\"}}"
+  local pattern="$(es-kb-get ${cluster} /api/saved_objects/_find?type=index-pattern | jq -r '.saved_objects[].attributes.title')"
+  local kibana_version="$(es-kb-get ${cluster} /api/status | jq -r '.version.number')"
+  echo "title: ${title}"
+  version_test ${kibana_version} lt "7.10"
+  if [[ $? == 0 ]]; then
+    echo "Kibana version must be 7.10 or higher to use index_pattern api"
+    return 1
+  fi
+  echo "${pattern}" | grep -F "${title}"
+  if [[ -n "$(echo "${pattern}" | grep -F "${title}")" ]]; then
+    echo "Index pattern ${title} exists"
+    return
+  fi
+  local index="$(es-get ${cluster} /${title} | jq -r 'keys[0]')"
+  if [[ "${index}" == "error" ]] || [[ "${index}" == "null" ]]; then
+    echo "No indices match ${title}"
+    return
+  fi
+  es-kb-post ${cluster} /api/index_patterns/index_pattern "$(echo ${json})"
+}
+
+# Push Elasticsearch legacy index-template
+# es-put-template <cluster_nickname> <input_json_file> 
+es-put-template() {
+  local cluster="${1}"
+  local file="${2}"
+  local filename="${file##*/}"
+  local json="$(jq -r '.[].mappings |= { _doc: . } | .[]' ${file})"
+  json="$( echo ${json} | jq '.settings.index += { "number_of_shards":"3","number_of_replicas":"1" }')"
+  es-put "${cluster}" "/_template/${filename%%\.*}?include_type_name" "$(echo ${json})"
+}
+
+# Push Elasticsearch index-template
+# es-put-index-template <cluster_nickname> <input_json_file> 
+es-put-index-template() {
+  local cluster="${1}"
+  local file="${2}"
+  local filename="${file##*/}"
+  local json="$(cat ${file})"
+  es-put "${cluster}" "/_index_template/${filename%%\.*}" "$(echo ${json})"
+}
+
+# Push Elasticsearch component-template
+# es-put-component-template <cluster_nickname> <input_json_file> 
+es-put-component-template() {
+  local cluster="${1}"
+  local file="${2}"
+  local filename="${file##*/}"
+  local json="$(cat ${file})"
+  es-put "${cluster}" "/_component_template/${filename%%\.*}" "$(echo ${json})"
+}
+
+# Push Elasticsearch aliases after templates and ilm exists
+# es-put-alias <cluster_nickname> <alias> 
+es-put-alias() {
+  local cluster="${1}"
+  local alias="${2}"
+  if [[ -n "$(es-get ${cluster} /_cat/aliases/${alias} | awk '{print $1}')" ]]; then
+    echo "Alias ${alias} already exists"
+    return
+  fi
+  local index="$(es-get ${cluster} /${alias} | jq -r 'keys[0]')"
+  if [[ "${index}" != "error" ]] && [[ "${index}" != "null" ]]; then
+    echo "Index ${alias} name conflict."
+    return
+  fi
+  es-put "${cluster}" "/%3C${alias}-%7Bnow%2Fd%7D-000001%3E" "{\"aliases\":{\"${alias}\": {\"is_write_index\":\"true\"}}}"  
+}
+
+# Push Elasticsearch Index Lifecycle Management
+# es-put-ilm <cluster_nickname> <input_json_file> 
+es-put-ilm() {
+  local cluster="${1}"
+  local file="${2}"
+  local filename="${file##*/}"
+  local json="$(jq -r '{ policy: .[].policy}' ${file})"
+  es-put "${cluster}" "/_ilm/policy/${filename%%\.*}" "$(echo ${json})"
+}
+
+# PUT _slm/policy/double-daily-snapshots
+# {
+#   "name": "<dayly-snap-{now{yyyy.MM.dd.HH}}>",
+#   "schedule": "0 1 */12 * * ?",
+#   "repository": "prod-s3-001",
+#   "config": {
+#     "indices": [],
+#     "ignore_unavailable": true,
+#     "partial": true
+#   },
+#   "retention": {
+#     "expire_after": "3d",
+#     "min_count": 2,
+#     "max_count": 5
+#   }
+# }
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then

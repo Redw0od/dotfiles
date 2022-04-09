@@ -190,6 +190,7 @@ aws-assume-role () {
   #token_code="${token_code:+"--token-code '${token_code}'"}"
   if [ ! -z "${arn}" ]; then
     cmd "sts=\"\$(aws sts assume-role --role-arn ${arn} --role-session-name stanton-${profile} --profile ${profile} )\""
+    if [ $? -ne 0 ]; then echo "System time incorrect?"; fi
   fi
   export AWS_SESSION_TOKEN="$(echo $sts | jq -r '.Credentials.SessionToken')"
   export AWS_SECURITY_TOKEN="$AWS_SESSION_TOKEN"
@@ -243,6 +244,20 @@ aws-report-all-rds-clusters () {
   echo ${json} | jq -r '. | @tsv' | column -t -s$'\t' -n -
 }
 
+# Create a table of all EC2 instances in region
+aws-report-all-rds-clusters () {
+  aws-apply-profile
+  local instances=$(aws ec2 describe-instances | jq -r '.Reservations[].Instances' )
+  local json='[ "Name", "Type", "Version", "Status", "subnet" ]'
+  for instance in ${instances[@]}; do
+    echo "region: ${region}"
+    json+="$(aws-report-rds-clusters ${region})"
+  done
+  echo ""
+  echo ${json} | jq -r '. | @tsv' | column -t -s$'\t' -n -
+}
+
+
 # Create RDS snapshot that create Tags for all settings
 # Call function with rds cluster name as arguement
 aws-rds-snapshot (){
@@ -283,11 +298,27 @@ aws-rds-snapshot (){
   fi
 }
 
+# Login to AWS ECR repo with docker
+# aws-ecr-login [repo] [region]
 aws-ecr-login () {
   local repo="${1:-785540879854.dkr.ecr.us-west-2.amazonaws.com}"
   local region="${2:+"--region ${2}"}"
   local token="$(aws ecr get-login-password ${region})"
   echo ${token} | docker login --username AWS --password-stdin "${repo}"
+}
+
+# Delete images from repo that match a tag
+# aws-ecr-purge <registry> <tag> [repo] [region]
+aws-ecr-purge () {
+  local registry="${1}"
+  local tag="${2}"
+  local repo="${3:-785540879854.dkr.ecr.us-west-2.amazonaws.com}"
+  local region="${4:+"--region ${4}"}"
+  local images="$(aws ecr describe-images --repository-name ${registry} ${region} | jq -r '.imageDetails[] | select (.imageTags[]? | contains("'${tag}'") ) | .imageTags[]' | grep ${tag} | sort -u)"
+  for i in ${images[@]}; do
+    echo "aws ecr batch-delete-image --repository-name ${registry} --image-ids imageTag=${i} ${region}"
+    aws ecr batch-delete-image --repository-name ${registry} --image-ids imageTag=${i} ${region}
+  done
 }
 
 aws-ecr-repositories () {
@@ -369,6 +400,50 @@ aws-ec2-name () {
   json=$(aws ec2 describe-instances --filters Name=tag:Name,Values=${name_filter})
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
   echo "${json}"
+}
+
+# List VPC details by region
+# aws_list_vpcs region
+aws_list_vpcs() {
+  local region="${1:+--region ${1}}"
+  local format="${2:-table}"
+  local vpcs vpc_object vpc
+  local vpc_json=$(aws ec2 describe-vpcs ${region})
+  for vpc in $(echo ${vpc_json}|jq -c '.Vpcs[]'); do
+    if [[ "$(echo ${vpc} | jq '.Tags[]' 2> /dev/null)" ]]; then 
+      vpc_object=$(echo [${vpc}] | jq 'map({VpcId,CidrBlock,Name: (.Tags[]|select(.Key=="Name")|.Value)})')
+    else
+      vpc_object=$(echo [${vpc}] | jq 'map({VpcId,CidrBlock})')
+    fi
+    vpcs="$(echo ${vpcs} | jq ". + ${vpc_object}")"
+    vpcs="${vpcs:-$vpc_object}"
+  done
+  if [[ "${format}" == "table" ]]; then 
+    echo ${vpcs} | jq -r '.[]| [.VpcId, .CidrBlock, .Name] | @tsv' | column -t -s$'\t' -n -
+  else
+    echo "${vpcs}"
+  fi
+}
+
+# List Subnets details by region
+# aws_list_vpcs region
+aws_list_subnets() {
+  local region="${1:+--region ${1}}"
+  local subnets vpc_id vpc2 subnet_json subnet_table
+  local json=$(aws_list_vpcs "${1}" "json")
+  for vpc in $(echo ${json}|jq -c '.[]'); do
+    vpc_id=$(echo "$vpc" | jq -r '.VpcId')
+    vpc2=$(echo "$vpc" | jq -r '. | .["VpcName"] = .Name | .["VpcCidrBlock"] = .CidrBlock | del(.CidrBlock, .Name)')
+    subnet_json=$(aws ec2 describe-subnets --filter Name=vpc-id,Values=${vpc_id} ${region})
+    if [ "$(echo ${subnet_json} | jq '.Subnets[].Tags[]' 2> /dev/null)" ]; then 
+      subnets="$(echo ${subnet_json} | jq "[.[]|map({SubnetId,AvailabilityZone,CidrBlock,Name: (.Tags[]|select(.Key==\"Name\")|.Value)})| .[] + ${vpc2}]")"
+    else
+      subnets="$(echo ${subnet_json} | jq "[.[]|map({SubnetId,AvailabilityZone,CidrBlock})| .[] + ${vpc2}]")"
+    fi
+    subnet_table="$(echo ${subnet_table} | jq ". + ${subnets}")"
+    subnet_table="${subnet_table:-$subnets}"
+  done
+    echo "${subnet_table}" | jq -r '.[] | [.VpcId, .VpcCidrBlock, .VpcName, .SubnetId, .AvailabilityZone, .CidrBlock, .Name] | @tsv' | column -t -s$'\t' -n -
 }
 
 # List available secrets per region

@@ -124,7 +124,7 @@ kube-pod-top () {
   local header="${4:-true}"
   local fmt="%6s %5s %7s %-12s\n"
   if [ -z "${pod}" ]; then return 1; fi
-  if [ -n "$(shell-utilities 'kubectl' )" ]; then return 1; fi
+  if [ -n "$(shell_utilities 'kubectl' )" ]; then return 1; fi
   if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi  
   local top=$(kubectl ${namespace} exec "${pod}" ${container} -- top -b -n 1 2> /dev/null | grep -A 1 PID | grep -v PID) 
   if [ $? != 0 ]; then echo "ERROR running top on ${namespace}:${pod}"; return; fi
@@ -172,7 +172,7 @@ kube-es-creds () {
 
 # Check for new update to kubectl
 kube-check-binary () {
-  if [ -n "$(shell-utilities 'kubectl' )" ]; then return 1; fi
+  if [ -n "$(shell_utilities 'kubectl' )" ]; then return 1; fi
   local version="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
   local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"  
   if [[ "${version}" != "${latest}" ]]; then
@@ -211,7 +211,7 @@ kube-export () {
 }
 
 kube-export-yaml () {
-  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata."kubectl.kubernetes.io/last-applied-configuration") | .metadata.creationTimestamp=null'
+  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.annotations."kubectl.kubernetes.io/last-applied-configuration") | .metadata.creationTimestamp=null'
 }
 
 # Decode base64 encoded values in .data object
@@ -238,27 +238,28 @@ kube-list-old-pods () {
   IFS=$IFS_BACKUP
 }
 
+# Take a list of pods and terminate them
+# kube-list-old-pods 6 | grep 'event\|resource' | kube-rollover-pods
+# kubectl get pods | kube-rollover-pods <namespace>
 kube-rollover-pods () {
   local namespace="${1}"
-  local deathnote=""
-  local deathqueue=""
+  local deathnote deathqueue pod 
+  local backup_ifs=$IFS
+  IFS=$'\n'
   for list in $(cat - ); do
     fields="$(echo $list | awk '{print NF}')"
-    if [ "${fields}" == "5" ] && [ -z "${namespace}" ]; then echo "Missing Namespace.";return;fi
+    if [ "${fields}" == "5" ]; then
+      if [ -z "${namespace}" ]; then echo "Missing Namespace.";return;fi
+      pod="$(echo $list | awk '{print $1}')"
+    fi
     if [ "${fields}" == "6" ]; then
-      local namespace="$(echo $list | awk '{print $1}')"
-      local pod="$(echo $list | awk '{print $2}')"
+      namespace="$(echo $list | awk '{print $1}')"
+      pod="$(echo $list | awk '{print $2}')"
     fi
-    note="${namespace}$(echo ${pod} | cut -d- -f1)"
-    #replicaset="$(kubectl -n ${namespace} get pod resource-gateway-78dd7dfdf5-g8x7m -o json | jq  -r '.metadata.ownerReferences[].name')"
-    if [ -z "$(echo $deathnote | grep $note )" ]; then
-      deathnote="${deathnote}:${note}"
-      kubectl -n ${namespace} delete pod/${pod} &
-    else
-      deathqueue+=("${list}")
-    fi
+    echo "kubectl -n ${namespace} delete pod/${pod}"
+    kubectl -n ${namespace} delete pod/${pod} &
   done
-  echo "queue: ${deathqueue[@]}"
+  IFS=$backup_ifs
 }
 
 # If you source this file directly, apply the overwrites.
