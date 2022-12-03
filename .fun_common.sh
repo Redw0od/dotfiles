@@ -34,7 +34,7 @@ common-utility-check() {
 common-help() {
 	local prefix="${1}"
 	local source_path="${2:-"${HOME}/.fun_${prefix}.sh"}"
-	eval "${prefix}-help () {
+	eval "${prefix}-help() {
   local func=\"\${1}\"
   local func_names=\"\$(cat ${source_path} | grep '^${prefix}-.*(' | awk -F '(' '{print \$1}')\"
 	local comment line

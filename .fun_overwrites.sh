@@ -2,6 +2,8 @@ sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
+path-prepend "${HOME}/.local/bin"
+
 ssh-git-account() {
   local account="${1}"
   case ${account} in

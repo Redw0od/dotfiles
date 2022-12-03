@@ -18,10 +18,10 @@ fi
 if [ -d "${HOME}/bin" ] ; then
     path-prepend "${HOME}/bin"
 fi
-if [ -n ${GOROOT} ] && [ -d "${GOROOT}/bin" ] ; then
+if [ -n "${GOROOT}" ] && [ -d "${GOROOT}/bin" ] ; then
     path-prepend "${GOROOT}/bin"
 fi
-if [ -n ${GOPATH} ] && [ -d "${GOPATH}/bin" ] ; then
+if [ -n "${GOPATH}" ] && [ -d "${GOPATH}/bin" ] ; then
     path-prepend "${GOPATH}/bin"
 fi
 

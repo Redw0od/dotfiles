@@ -9,6 +9,12 @@ abbr='mad'
 # Create help function for this file
 common-help "${abbr}" "${_this}"
 
+#---- ck8s-start ----
+export CK8S_ROOT="${HOME}/git/DDPMCP/mcp-infra"
+export CK8S_ENVARS="${HOME}/.mandiant/.envars"
+source ${HOME}/.mandiant/ck8s.sh
+#---- ck8s-end ----
+
 # Read customer-configuration environments js and strip out unneeded lines
 # mad-environments-js
 mad-environments-js() {
