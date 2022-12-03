@@ -28,17 +28,19 @@ if [ -f "${HOME}/.secrets.sh" ] ; then
 	source "${HOME}/.secrets.sh"
 fi
 
+if [ -f "${HOME}/.fun_common.sh" ]; then
+	source "${HOME}/.fun_common.sh"
+fi
+
 # Load all .fun_ scripts in home directory
-for script in $(/bin/ls -a ${HOME} | grep '^.fun_.*\.sh$' | grep -v overwrites ); do
-    source "${HOME}/${script}"
+for script in $(/bin/ls -a ${HOME} | grep '^.fun_.*\.sh$' | grep -v 'overwrites\|common' ); do
+	source "${HOME}/${script}"
 done
 
 if [ -f "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
 
-echo "Loaded shell files:"
-echo "${_sources[@]}"
 
 #######################################################
 # EXPORTS
@@ -55,7 +57,9 @@ export KUBECONFIG="${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml"
 export TG_ROOT="${HOME}/git/platform/terraform-modules"
 export GOPATH="$HOME/go"
 export LAST_STATUS=0
-
+export DEBUG_LOG="${HOME}/tmp/debug.log"
+# export VERBOSE=true
+# export DEBUG=true
 
 # Expand the history size
 export HISTFILESIZE=10000
@@ -69,6 +73,7 @@ export EDITOR=vim
 export VISUAL=vim
 
 # To have colors for ls and all grep commands such as grep, egrep and zgrep
+export COLOR_MODE="dark"
 export CLICOLOR=1
 export LS_COLORS='no=00:fi=00:di=01;34:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:*.xml=00;31:'
 alias grep="grep --color=auto"
@@ -82,6 +87,11 @@ export LESS_TERMCAP_so=$'\E[01;44;33m'
 export LESS_TERMCAP_ue=$'\E[0m'
 export LESS_TERMCAP_us=$'\E[01;32m'
 
+exec {funlog}>${DEBUG_LOG}
+if [ "${VERBOSE}" = "true" ]; then
+	echo "Loaded shell files:" >&$funlog
+	echo "${_sources[@]}" >&$funlog
+fi
 
 #######################################################
 # Set the ultimate amazing command prompt

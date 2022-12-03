@@ -5,39 +5,13 @@ declare -A REGISTRIES
 declare -A RDS
 
 abbr='mad'
-# Gives details on functions in this file
-# Call with a function's name for more information
-eval "${abbr}-help () {
-  local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
-  if [ -z \"\${func}\" ]; then
-    echo \"Helpful Elasticsearch functions.\"
-    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
-    echo \"\${func_names[@]}\"
-    return
-  fi
-  cat \"${_this}\" | \
-  while read line; do
-		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
-      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
-      echo -e \"\${comment}\"
-    fi
-    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
-      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
-        comment=\"\${comment}\n\${line}\"
-      else
-        comment=\"\${line}\"
-      fi
-    else
-      comment=\"\"
-    fi
-  done  
-  banner \"\" \"\" \${color[gray]}
-}"
+
+# Create help function for this file
+common-help "${abbr}" "${_this}"
 
 # Read customer-configuration environments js and strip out unneeded lines
 # mad-environments-js
-mad-environments-js () {
+mad-environments-js() {
     local config_repo="customer-configuration"
     local config_path="src/environments.js"
     local config_dir="$(find ${GITHOME} -type d -name ${config_repo} -print -quit)"
@@ -55,7 +29,7 @@ mad-environments-js () {
 
 # Build Bash Arrays of RDS and Registries
 # mad-parse-environments
-mad-parse-environments () {
+mad-parse-environments() {
 	local id=""
 	local env=""
 	local db="false"
@@ -121,7 +95,7 @@ mad-parse-environments () {
 
 # Print Mandiant Array Values
 # mad-dump-arrays
-mad-dump-arrays () {
+mad-dump-arrays() {
 	declare -a ARRAYS=("RDS" "REGISTRIES" "VAULTS" "TOKENS" "APIKEYS" "ELASTIC" "KIBANA" "KUBE")
 	for ARR in ${ARRAYS[@]}; do
 		declare -n NAME=$ARR
@@ -134,8 +108,8 @@ mad-dump-arrays () {
 
 # Apply shell configurations by environment
 # mad-assume <environment> [-force]
-mad-assume () { 
-	local name="${1}"
+mad-assume() {
+	local name="$(echo ${1} | awk '{print toupper($0)}')"
 	local force="${2}"
 	export MAD_PROFILE="${name}"
 	case "${name}" in
@@ -143,49 +117,52 @@ mad-assume () {
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-prod ${force}
 			kube-profile prod
-			vault_profile primary
+			vault-profile primary
+			kt-set ${name}
 			;;
 		usw2)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-prod ${force}
 			kube-profile ${name}
-			vault_profile primary
+			vault-profile primary
+			kt-set ${name}
 			;;
 		apse1|apse2|euw1)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-prod ${force}
 			kube-profile ${name}
-			vault_profile ${name}
+			vault-profile ${name}
+			kt-set ${name}
 			;;
 		mordin|dev)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-dev ${force}
 			kube-profile dev
-			vault_profile primary
+			vault-profile primary
 			;;
 		legion|corp)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond ${force}
 			kube-profile corp
-			vault_profile primary
+			vault-profile primary
 			;;
 		gov)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-${name} ${force}
 			kube-profile ${name}
-			vault_profile ${name}
+			vault-profile ${name}
 			;;
 		ops)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-${name} ${force}
 			kube-profile ${name}
-			vault_profile primary
+			vault-profile primary
 			;;
 		sso)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-${name} ${force}
 			kube-profile prod
-			vault_profile primary
+			vault-profile primary
 			;;
 		sec)
 			ssh-load-keys mandiant git
@@ -199,23 +176,23 @@ mad-assume () {
 
 # Port forward rabbit-mq and display connection details
 # kube-rabbit [namespace] [service]
-kube-rabbit () {
+kube-rabbit() {
     local namespace=${1:-shared}
     local service=${2:-rabbitmq}
-    vault_profile primary
+    vault-profile primary
     vault read prod/respond/secret/provisioner/rabbitmq
     kube-forward-rabbit ${namespace} ${service}
 }
 
 # No DNS resolution over VPN, add to hosts file
 # mad-inject-hosts
-mad-inject-hosts () {
+mad-inject-hosts() {
 	sudo echo "10.17.148.166   es.dev.mad-ops.net" >> /etc/hosts
 }
 
 # Run docker build tags for all sidecar containers in sub-directories
 # mad-docker-build-sidecars <tag> [old_tag] [root folder]
-mad-docker-build-sidecars () {
+mad-docker-build-sidecars() {
 	local new_tag=${1}
 	local old_tag=${2}
 	local folder=${3:-"${GITHOME}/mandiant/main"}
@@ -231,7 +208,7 @@ mad-docker-build-sidecars () {
 		popd  > /dev/null
 	done
 	popd  > /dev/null
-	jobs_pause
+	jobs-pause
 	if [ -n "${old_tag}" ]; then
 		docker rmi $(docker images | grep ${old_tag} | awk '{print $1":"$2}')
 		docker rmi $(docker images | grep none | awk '{print $3}')
@@ -244,12 +221,32 @@ mad-docker-build-sidecars () {
 	if [ "${profile}" != "corp" ]; then
 		mad-assume ${profile}
 	fi
-	jobs_pause
+	jobs-pause
+}
+
+# Generate a new derp token
+# mad-derp-token [image:tag] [parent_path_of_dockerfiles]
+mad-derp-token() {
+	local cluster=${1}
+	local customer=${2}
+	local buildPass stage
+	if [[ -z "${cluster}" ]]; then echo "cluster alias required."; return; fi
+	if [[ -z "${customer}" ]]; then echo "customer id required."; return; fi
+	local vprofile="${VAULT_PROFILE}"
+	vault-profile "${cluster}"
+	case "${cluster}" in
+		GRUNT) stage="prod";;
+		MORDIN) stage="dev" ;;
+		*) stage="${cluster}" ;;
+	esac
+	buildPass=$(vault read -format json -field password /${stage,,}/respond/secret/provisioner/buildUser | jq -r .)
+	curl-user "${PROVISIONING[${cluster}]}/api/event-tokens" "builduser:${buildPass}" "{ \"customerId\": \"${customer}\" }"
+	if [ "${VAULT_PROFILE}" != "${vprofile}" ]; then vault-profile ${vprofile}; fi
 }
 
 # Change sidecar FROM to specific image
 # mad-dockerfile-local [image:tag] [parent_path_of_dockerfiles]
-mad-dockerfile-local () {
+mad-dockerfile-local() {
 	local from=${1:-"785540879854.dkr.ecr.us-west-2.amazonaws.com/respond-init:stanton"}
 	local folder=${2:-"$(pwd)"}
 	pushd ${folder} > /dev/null
@@ -264,7 +261,7 @@ mad-dockerfile-local () {
 
 # Insert line 2 into non-sidecar dockerfiles
 # mad-dockerfile-component [line_2] [parent_path_of_dockerfiles]
-mad-dockerfile-component () {
+mad-dockerfile-component() {
 	local insert=${1:-"USER respond"}
 	local folder=${2:-"$(pwd)"}
 	pushd ${folder} > /dev/null
@@ -276,6 +273,31 @@ mad-dockerfile-component () {
 		mv -f "${file}2" "${file}"
 	done
 	popd > /dev/null
+}
+
+kt-set() {
+  local profile="$(echo ${1} | awk '{print toupper($0)}')"
+	echo '{"mode": "TLS-1way"}' > "${HOME}/kt_auth.json"
+	export KT_AUTH="${HOME}/kt_auth.json"
+	case "${profile}" in
+		GRUNT|PROD)
+			export KT_BROKERS="300.kafka-2.us-west-2.prod.respond-ops.com:9092,302.kafka-2.us-west-2.prod.respond-ops.com:9092,401.kafka-2.us-west-2.prod.respond-ops.com:9092,403.kafka-2.us-west-2.prod.respond-ops.com:9092"
+			unset KT_AUTH
+			;;
+		USW2)
+			export KT_BROKERS="b-6.mad-prod-usw2-msk.eyk6i0.c12.kafka.us-west-2.amazonaws.com:9094,b-4.mad-prod-usw2-msk.eyk6i0.c12.kafka.us-west-2.amazonaws.com:9094,b-8.mad-prod-usw2-msk.eyk6i0.c12.kafka.us-west-2.amazonaws.com:9094"
+			;;
+		APSE1)
+			export KT_BROKERS="b-2.mad-prod-apse1-ms.1x760j.c2.kafka.ap-southeast-1.amazonaws.com:9094,b-1.mad-prod-apse1-ms.1x760j.c2.kafka.ap-southeast-1.amazonaws.com:9094,b-3.mad-prod-apse1-ms.1x760j.c2.kafka.ap-southeast-1.amazonaws.com:9094"
+			;;
+		APSE2)
+			export KT_BROKERS="b-2.mad-prod-apse2-ms.xmgcw6.c2.kafka.ap-southeast-2.amazonaws.com:9094,b-1.mad-prod-apse2-ms.xmgcw6.c2.kafka.ap-southeast-2.amazonaws.com:9094,b-3.mad-prod-apse2-ms.xmgcw6.c2.kafka.ap-southeast-2.amazonaws.com:9094"
+			;;
+		EUW1)
+			export KT_BROKERS="b-1.mad-prod-euw1-msk.ebcwt1.c6.kafka.eu-west-1.amazonaws.com:9094,b-3.mad-prod-euw1-msk.ebcwt1.c6.kafka.eu-west-1.amazonaws.com:9094,b-2.mad-prod-euw1-msk.ebcwt1.c6.kafka.eu-west-1.amazonaws.com:9094"
+			;;
+		*) unset KT_BROKERS KT_AUTH ;;
+	esac
 }
 
 # If you source this file directly, apply the overwrites.

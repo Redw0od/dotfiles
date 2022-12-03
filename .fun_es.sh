@@ -5,47 +5,16 @@ _sources+=("$(basename ${_this})")
 
 UTILITIES+=("echo" "awk" "grep" "cat" "curl" "base64" "tr" "printf" "wc" "sort" "kubectl" "pkill" "sleep")
 abbr='es'
-# Gives details on functions in this file
-# Call with a function's name for more information
-eval "${abbr}-help() {
-  local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}-' | awk '{print \$1}')\"
-  if [ -z \"\${func}\" ]; then
-    echo \"Helpful Elasticsearch functions.\"
-    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
-    for f in \${func_names}; do echo \${f} | sed 's/()//g'; done
-    return
-  fi
-  cat \"${_this}\" | \
-  while read line; do
-		if [ -n \"\$(echo \"\${line}\" | grep \"\${func}*()\" )\" ]; then
-      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
-      echo -e \"\${comment}\"
-    fi
-    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
-      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
-        comment=\"\${comment}\n\${line}\"
-      else
-        comment=\"\${line}\"
-      fi
-    else
-      comment=\"\"
-    fi
-  done  
-  banner \"\" \"\" \${color[gray]}
-}"
+
+# Create help function for this file
+common-help "${abbr}" "${_this}"
 
 # Curl Elasticsearch with API key
 # es-curl [url] [ApiKey]
 es-curl() {
   local cURL="${1}"
   local cAPI="${2}"
-  if [ -z ${cURL} ]; then echo "need URL"; return 1;fi
-  local H1="'Content-Type: application/json'"
-  local H2="Authorization: ApiKey ${cAPI}"
-  #echo "curl -sk ${cURL} -H ${H1} -H \"${H2}\""
-  cmd "curl -sk ${cURL} -H ${H1} -H \"${H2}\""
-  return ${LAST_STATUS}
+  vpn-check-apikey "${cURL}" "${cAPI}"
 }
 
 
@@ -166,8 +135,6 @@ es-create-apikey-restricted() {
   es-post-user "${cluster}"  '/_security/api_key' "${policy}" "${auth}"
 }
 
-
-
 # Report list of clusters
 es-list-clusters() {
   if [ -z "${ELASTIC[*]}" ]; then 
@@ -220,7 +187,17 @@ es-get-index-creation() {
   local index="${2}"
   if [ -z ${cluster} ] || [ -z ${index} ] ; then echo "Cluster Nickname Required."; return; fi
   local creation_date=$(es-get "${cluster}" "/${index}" | jq -r '.[].settings.index.creation_date')
-  printf "%s\n" $((${creation_date}/1000))
+  printf "%s\n" $((${creation_date}))
+}
+
+# Get index rollover alias
+# es-get-index-alias <cluster> <index>
+es-get-index-alias() {
+  local cluster="${1}"
+  local index="${2}"
+  if [ -z ${cluster} ] || [ -z ${index} ] ; then echo "Cluster Nickname Required."; return; fi
+  local alias=$(es-get "${cluster}" "/${index}" | jq -r '.[].settings.index.lifecycle.rollover_alias')
+  printf "%s\n" ${alias}
 }
 
 # Get index size in kilobytes
@@ -253,7 +230,6 @@ es-delete-retry() {
   done
 }
 
-
 es-set-ilm-date() {
   local cluster="${1}"
   local index="${2}"
@@ -268,14 +244,32 @@ es-set-ilm-date() {
   es-put "${cluster}" "/${index}/_settings" "${json}"
 }
 
-# Get index size in kilobytes
-# es-get-index-size <cluster> <index> [size kb limit] [minimum age days]
+es-set-ilm-alias() {
+  local cluster="${1}"
+  local index="${2}"
+  local alias="${3}"
+  local json='{  
+    "actions": [
+    {
+      "add": {
+        "index": "'${index}'",
+        "alias": "'${alias}'"
+      }
+    }
+  ]}'
+  if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
+  es-post "${cluster}" "/_aliases" "${json}"
+}
+
+# Reindex and drop documents that match $INDEX_FILTER
+# es-reduce-index <cluster> <[index_array]> [new_index_name] [$INDEX_FILTER]
 es-reduce-index() {
   local cluster="${1}"
   local indicies=(${2})
   local index_name="${3:-${indicies[0]}-reindex}"
   local index_json="${4:-$(echo ${INDEX_FILTER} | jq)}"
   local index_created=$(es-get-index-creation ${cluster} ${indicies[0]})
+  local index_alias=$(es-get-index-alias ${cluster} ${indicies[0]})
   local index task
   local waiting="true"
   local json='{
@@ -299,19 +293,21 @@ es-reduce-index() {
     json=$(echo "${json}" "${index_json}" | jq -s '.[0] * .[1]')
   fi
   echo "es-post \"${cluster}\" /_reindex?wait_for_completion=false \"${json}\""
-  local task=$(es-post "${cluster}" '/_reindex?wait_for_completion=false' "${json}")
+  local task=$(es-post "${cluster}" '/_reindex?wait_for_completion=false' "${json}" | jq -r '.task')
   echo "task: ${task}"
   echo -n "Waiting."
   while [[ "${waiting}" == "true" ]]; do
-    result=$(es-get "${cluster}" "/_tasks?actions=*reindex" | jq -r '.nodes[]')
-    if [[ -z "${result}" ]]; then
+    reindexing=$(es-get "${cluster}" "/_tasks?actions=*reindex" | jq -r '.nodes[]')
+    result=$(es-get "${cluster}" "/_tasks/${task}" | jq -r '.completed')
+    if [[ "${result}" == "true" ]] || [[ -z "${reindexing}" ]]; then
       waiting="false"
     fi
     sleep 30
     echo -n "."
   done
   echo ""
-  es-set-ilm-date "${cluster}" "${index}" ${index_created}
+  es-set-ilm-alias "${cluster}" "${index_name}" "${index_alias}" 
+  es-set-ilm-date "${cluster}" "${index_name}" ${index_created}
   if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then 
     for index in ${indicies[@]}; do
       es-delete-retry ${cluster} ${index}
@@ -322,21 +318,21 @@ es-reduce-index() {
   fi
 }
 
-
-# Compact indicies to reduce shard counts
-# es-compact-index <cluster> <index> [size kb limit] [minimum age days]
+# Reindex indicies and drop documents that match filter
+# es-reduce-indicies <cluster> <index_pattern> [minimum age days] [$INDEX_FILTER]
 es-reduce-indicies() {
   local cluster="${1}"
   local index_pattern="${2}"
   local today=$(date +%s)
-  local min_age=$((${4:-7}*24*60*60))
+  local min_age=$((${3:-7}*24*60*60))
+  local index_json="${4:-$(echo ${INDEX_FILTER} | jq)}"
   local index_created index_age index_size  index
   local index_group=()
   if [ -z ${cluster} ] || [ -z ${index_pattern} ] ; then echo "Cluster Nickname and Index Pattern Required."; return; fi
   local index_list=$(es-list-indices ${cluster} | grep "${index_pattern}" | grep -v reindex )
   for index in ${index_list}; do
     index_created=$(es-get-index-creation ${cluster} ${index})
-    index_age=$((today-index_created))
+    index_age=$((today-(index_created/1000)))
     echo -n "index: ${index}, today: ${today}, min_age: ${min_age}, created: ${index_created}; age: ${index_age}"
     if [ ${index_age} -lt ${min_age} ] ; then echo "";continue; fi
     echo -n ", $((index_age/(24*60*60))) days old"
@@ -354,14 +350,15 @@ es-reduce-indicies() {
 }
 
 
-# Get index size in kilobytes
-# es-get-index-size <cluster> <index> [size kb limit] [minimum age days]
+# Reindex multiple indicies into 1 index
+# es-merge-indicies <cluster> <[index_array]> [new_index_name] [index_pattern_filter]
 es-merge-indicies() {
   local cluster="${1}"
   local indicies=(${2})
   local index_name="${3:-${indicies[0]}-reindexed}"
   local index_filter=${4:-$INDEX_FILTER}
-  local index task
+  local index_alias=$(es-get-index-alias ${cluster} ${indicies[0]})
+  local index task index_created result reindexing
   local waiting="true"
   local json='{
     "conflicts": "proceed",
@@ -376,24 +373,27 @@ es-merge-indicies() {
   json=$(echo ${json} | jq '.dest.index = "'${index_name}'"')
   for index in ${indicies[@]}; do
     json=$(echo ${json} | jq '.source.index += ["'${index}'"]')
+    index_created=$(es-get-index-creation ${cluster} ${index})
   done
   if [[ -n "${index_filter}" ]]; then
     json=$(echo ${json} | jq '.source.query = "${index_filter}"')
   fi
   echo "es-post \"${cluster}\" /_reindex?wait_for_completion=false \"${json}\""
-  return
-  local task=$(es-post "${cluster}" '/_reindex?wait_for_completion=false' "${json}")
+  local task=$(es-post "${cluster}" '/_reindex?wait_for_completion=false' "${json}" | jq -r '.task')
   echo "task: ${task}"
   echo -n "Waiting."
   while [[ "${waiting}" == "true" ]]; do
-    result=$(es-get "${cluster}" "/_tasks?actions=*reindex" | jq -r '.nodes[]')
-    if [[ -z "${result}" ]]; then
+    reindexing=$(es-get "${cluster}" "/_tasks?actions=*reindex" | jq -r '.nodes[]')
+    result=$(es-get "${cluster}" "/_tasks/${task}" | jq -r '.completed')
+    if [[ "${result}" == "true" ]] || [[ -z "${reindexing}" ]]; then
       waiting="false"
     fi
     sleep 30
     echo -n "."
   done
   echo ""
+  es-set-ilm-alias "${cluster}" "${index_name}" "${index_alias}" 
+  es-set-ilm-date "${cluster}" "${index_name}" ${index_created}
   if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then 
     for index in ${indicies[@]}; do
       es-delete-retry ${cluster} ${index}
@@ -416,10 +416,10 @@ es-compact-index() {
   local index_created index_age index_size reindex_size index
   local index_group=()
   if [ -z ${cluster} ] || [ -z ${index_pattern} ] ; then echo "Cluster Nickname and Index Pattern Required."; return; fi
-  local index_list=$(es-list-indices ${cluster} | grep "${index_pattern}")
+  local index_list=$(es-list-indices ${cluster} | grep "${index_pattern}" | grep -v reindex)
   for index in ${index_list}; do
     index_created=$(es-get-index-creation ${cluster} ${index})
-    index_age=$((today-index_created))
+    index_age=$((today-(index_created/1000)))
     echo -n "index: ${index}, today: ${today}, min_age: ${min_age}, created: ${index_created}; age: ${index_age}"
     if [ ${index_age} -lt ${min_age} ] ; then echo "";continue; fi
     echo -n ", $((index_age/(24*60*60))) days old"
@@ -436,7 +436,6 @@ es-compact-index() {
       if [ ${#index_group[@]} -gt 1 ]; then
         echo ", size: ${index_size}, Creating New Index: , size:${reindex_size}"
         es-merge-indicies "${cluster}" "${index_group[*]}"
-        return
       else
         echo ", size: ${index_size}, Skip previous index"
       fi
@@ -721,7 +720,7 @@ es-put-index-pattern() {
   local pattern="$(es-kb-get ${cluster} /api/saved_objects/_find?type=index-pattern | jq -r '.saved_objects[].attributes.title')"
   local kibana_version="$(es-kb-get ${cluster} /api/status | jq -r '.version.number')"
   echo "title: ${title}"
-  version_test ${kibana_version} lt "7.10"
+  version-test ${kibana_version} lt "7.10"
   if [[ $? == 0 ]]; then
     echo "Kibana version must be 7.10 or higher to use index_pattern api"
     return 1

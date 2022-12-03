@@ -7,33 +7,9 @@ UTILITIES+=("echo" "awk" "grep" "rev" "git" "cut" "gh")
 abbr='git'
 # Gives details on functions in this file
 # Call with a function's name for more information
-eval "${abbr}-help () {
-  local func=\"\${1}\"
-  local func_names=\"\$(cat ${_this} | grep '^${abbr}.*()' | awk '{print \$1}')\"
-  if [ -z \"\${func}\" ]; then
-    echo \"Helpful Elasticsearch functions.\"
-    echo \"For more details: \${color[green]}${abbr}-help [function]\${color[default]}\"
-    echo \"\${func_names[@]}\"
-    return
-  fi
-  cat \"${_this}\" | \
-  while read line; do
-		if [ -n \"\$(echo \"\${line}\" | grep -F \"\${func} ()\" )\" ]; then
-      banner \" function: \$func \" \"\" \${color[gray]} \${color[green]}
-      echo -e \"\${comment}\"
-    fi
-    if [ ! -z \"\$(echo \${line} | grep '^#')\" ]; then 
-      if [ ! -z \"\$(echo \${comment} | grep '^#')\" ]; then
-        comment=\"\${comment}\n\${line}\"
-      else
-        comment=\"\${line}\"
-      fi
-    else
-      comment=\"\"
-    fi
-  done  
-  banner \"\" \"\" \${color[gray]}
-}"
+
+# Create help function for this file
+common-help "${abbr}" "${_this}"
 
 # PS1 output for git profile
 git-ps1-color () {
@@ -118,7 +94,7 @@ git-update-main () {
 git-clone-all () {
   local owner="${1}"
   if [ -z "${owner}" ]; then return 1; fi
-  if [ -n "$(shell_utilities 'gh' 'git' )" ]; then return 1; fi
+  if [ -n "$(common-utilities 'gh' 'git' )" ]; then return 1; fi
   if [ ! -d "${GITHOME}/${owner}" ]; then mkdir -p "${GITHOME}/${owner}"; fi
   pushd "${GITHOME}/${owner}" > /dev/null
   local repos=($(gh repo list "${owner}" | awk '{print $1}' ))

@@ -7,28 +7,35 @@ UTILITIES+=("tput" "printf")
 
 declare -A color
 
-set_color() {
-  if [ -z "$(which tput)" ]; then 
+set-color() {
+  if [ -z "$(command -v tput)" ]; then 
     echo "\e[38;5;${1}m"
   else 
     tput setaf ${1}
   fi
 }
 
-set_bg_color() {
-  if [ -z "$(which tput)" ]; then 
+set-bg-color() {
+  if [ -z "$(command -v tput)" ]; then 
     echo "\e[38;5;${1}m"
   else 
     tput setab ${1}
   fi
 }
 
-color_map() {
-    for colors in {0..255} ; do # Colors
-        # Display the color
-		tput setab ${colors}
-        printf "  %3s  " ${colors}
-        printf "\e[48;5;%sm  %3s   " ${colors} ${colors}
+color-map() {
+  local background=${1:-true}
+  for colors in {0..255} ; do # Colors
+    # Display the color
+    if [[ ${background} == "true" ]]; then
+      tput setab ${colors}
+      printf "  %3s  " ${colors}
+      printf "\e[48;5;%sm  %3s   " ${colors} ${colors}
+    else 
+      tput setaf ${colors}
+      printf "  %3s  " ${colors}
+      printf "\e[38;05;%sm  %3s   " ${colors} ${colors}
+    fi
 		echo -n "${color[default]}"
         # Display 6 colors per lines
         if [ $(((${colors} + 1) % 6)) == 4 ] ; then
@@ -38,32 +45,48 @@ color_map() {
     echo # New line
 }
 
-color[black]=$(set_color 0)
-color[red]=$(set_color 1)
-color[darkgreen]=$(set_color 2)
-color[mustard]=$(set_color 3)
-color[darkblue]=$(set_color 4)
-color[purple]=$(set_color 5)
-color[teal]=$(set_color 6)
-color[lightgray]=$(set_color 7)
-color[gray]=$(set_color 8)
-color[orange]=$(set_color 9)
-color[green]=$(set_color 10)
-color[yellow]=$(set_color 11)
-color[blue]=$(set_color 12)
-color[burgandy]=$(set_color 13)
-color[cyan]=$(set_color 14)
-color[white]=$(set_color 15)
-color[lightred]=$(set_color 205)
-color[darkgray]=$(set_color 240)
-color[lightgreen]=$(set_color 154)
-color[brown]=$(set_color 88)
-color[lightblue]=$(set_color 45)
-color[magenta]=$(set_color 198)
-color[lightmagenta]=$(set_color 200)
-color[lightcyan]=$(set_color 87)
-color[lime_yellow]=$(set_color 190)
-color[powder_blue]=$(set_color 153)
+color[black]=$(set-color 0)
+color[darkred]=$(set-color 1)
+color[forest]=$(set-color 2)
+color[bistre]=$(set-color 3)
+color[mustard]=$(set-color 3)
+color[duke]=$(set-color 4)
+color[darkblue]=$(set-color 4)
+color[darkmagenta]=$(set-color 5)
+color[purple]=$(set-color 5)
+color[teal]=$(set-color 6)
+color[ashgray]=$(set-color 7)
+color[lightgray]=$(set-color 7)
+color[davysgray]=$(set-color 8)
+color[gray]=$(set-color 8)
+color[carmine]=$(set-color 9)
+color[red]=$(set-color 9)
+color[orange]=$(set-color 9)
+color[green]=$(set-color 10)
+color[citrine]=$(set-color 11)
+color[yellow]=$(set-color 11)
+color[blue]=$(set-color 12)
+color[electricpurple]=$(set-color 13)
+color[burgandy]=$(set-color 13)
+color[cerulean]=$(set-color 14)
+color[cyan]=$(set-color 14)
+color[bone]=$(set-color 15)
+color[darkgreen]=$(set-color 22)
+color[white]=$(set-color 231)
+color[lightred]=$(set-color 205)
+color[darkgray]=$(set-color 240)
+color[lightgreen]=$(set-color 154)
+color[brown]=$(set-color 88)
+color[lightblue]=$(set-color 45)
+color[magenta]=$(set-color 198)
+color[lightmagenta]=$(set-color 200)
+color[lightcyan]=$(set-color 87)
+color[lime_yellow]=$(set-color 190)
+color[powder_blue]=$(set-color 153)
+if [[ "${COLOR_MODE}" == "dark" ]]; then
+  color[orange]=$(set-color 202)
+  color[blue]=$(set-color 33)
+fi
 
 case ${TERM} in
   "xterm-256color")
@@ -86,6 +109,8 @@ color[info]=${color[teal]}
 color[error]=${color[red]}
 color[fail]=${color[red]}
 color[important]=${color[mustard]}
+color[help_header]=${color[forest]}
+color[help]=${color[green]}
 
 export color
 

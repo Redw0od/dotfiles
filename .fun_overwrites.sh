@@ -2,7 +2,7 @@ sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
-ssh-git-account () {
+ssh-git-account() {
   local account="${1}"
   case ${account} in
     *andiant*|DDPMCP) ssh-load-keys mandiant git;;
@@ -12,8 +12,45 @@ ssh-git-account () {
   esac
 } 
 
+kube-profile() {
+   export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
+   case "$1" in
+       prod)
+           export KOPS_CLUSTER_NAME=${KUBE[PRODCLUSTER]}
+           kubectl config use-context PRODCLUSTER
+           ;;
+       dev)
+           export KOPS_CLUSTER_NAME=${KUBE[DEVCLUSTER]}
+           kubectl config use-context DEVCLUSTER
+           ;;
+       *)
+           export KOPS_CLUSTER_NAME=${KUBE[${1}]}
+           kubectl config use-context ${1}
+           ;;
+   esac
+   export KUBE_ENV="${1}"
+   echo "Current k8s Context: $(kubectl config current-context)" 
+}
+# PS1 output for Kubernets Context
+kube-ps1-color() {
+  local k8s_cluster="${CK8S_ALIAS}"
+  case "${k8s_cluster}" in
+    *gov)
+      echo -e "${ORANGE}${k8s_cluster}${color[default]}"
+      ;;
+    *dev*)
+      echo -e "${color[yellow]}${k8s_cluster}${color[default]}"
+      ;;
+    *stage*)
+      echo -e "${color[gray]}${k8s_cluster}${color[default]}"
+      ;;
+    *)
+      echo -e "${color[red]}${BOLD}${k8s_cluster}${color[default]}"
+      ;;
+  esac
+}
 
-mad-assume () { 
+mad-assume() { 
 	local name="${1}"
 	local force="${2}"
 	export MAD_PROFILE="${name}"
@@ -22,49 +59,49 @@ mad-assume () {
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-prod ${force}
 			kube-profile prod
-			vault_profile primary
+			vault-profile primary
 			;;
 		usw2)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-prod ${force}
 			kube-profile ${name}
-			vault_profile primary
+			vault-profile primary
 			;;
 		apse1|apse2|euw1)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-prod ${force}
 			kube-profile ${name}
-			vault_profile ${name}
+			vault-profile ${name}
 			;;
 		mordin|dev)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-dev ${force}
 			kube-profile dev
-			vault_profile primary dev
+			vault-profile primary dev
 			;;
 		legion|corp)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond ${force}
 			kube-profile corp
-			vault_profile primary
+			vault-profile primary
 			;;
 		gov)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-${name} ${force}
 			kube-profile ${name}
-			vault_profile ${name}
+			vault-profile ${name}
 			;;
 		ops)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-${name} ${force}
 			kube-profile ${name}
-			vault_profile primary
+			vault-profile primary
 			;;
 		sso)
 			ssh-load-keys mandiant git
 			aws-apply-profile respond-${name} ${force}
 			kube-profile prod
-			vault_profile primary
+			vault-profile primary
 			;;
 		sec)
 			ssh-load-keys mandiant git
@@ -85,7 +122,7 @@ mad-assume () {
    	esac
 }
 
-kube-profile () {
+kube-profile() {
    export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
    source ${GITHOME}/mandiant/dev-ops/k8s/env.sh
    case "$1" in
@@ -129,7 +166,7 @@ kube-profile () {
    echo "Current k8s Context: $(kubectl config current-context)" 
 }
 
-aws-mfa-token () {
+aws-mfa-token() {
   local profile="${1}"
   local token_code=""
   case "${profile}" in
@@ -139,11 +176,41 @@ aws-mfa-token () {
   echo "${token_code}"
 }
 
-vault_profile () {
+vault-profile() {
   local profile="${1^^}"
   local stage="${2:-prod}"
+  case $profile in
+    GRUNT|MORDIN|LEGION) profile="PRIMARY";;
+  esac
   export VAULT_ADDR="${VAULTS[${profile}]}"
   export VAULT_TOKEN="${TOKENS[${profile}]}"
   export VAULT_SSH=~/.ssh/mandiant/mad-${stage,,}-${profile,,}-key.key
   export VAULT_PROFILE="${profile}"
+}
+
+kafka-sgs() {
+  aws-ec2-name '*kafka*' | jq -r '.[] | .[].Instances[].NetworkInterfaces[].Groups[].GroupId' 
+}
+kafka-instances() {
+  aws-ec2-name '*kafka*' | jq -r '.[] | .[].Instances[].InstanceId' 
+}
+
+zookeeper-sgs() {
+  aws-ec2-name '*zookeeper*' | jq -r '.[] | .[].Instances[].NetworkInterfaces[].Groups[].GroupId' 
+}
+
+zookeeper-instances() {
+  aws-ec2-name '*zookeeper*' | jq -r '.[] | .[].Instances[].InstanceId' 
+}
+
+
+zookeeper-brokers() {
+  local server=${1:-$ZOOKEEPER_ADDRESS}
+  zkcli -server ${server} ls /brokers/ids
+}
+
+zookeeper-broker() {
+  local id=${1}
+  local server=${2:-$ZOOKEEPER_ADDRESS}
+  zkcli -server ${server} get /brokers/ids/${id}
 }
