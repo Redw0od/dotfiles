@@ -53,12 +53,15 @@ git-call () {
   local active_dir="$(pwd)"
   local dir="${2:-${active_dir}}"
   local function="${1}"
+  local crd_set=${CHROME_REMOTE_DESKTOP_SESSION}
+  unset CHROME_REMOTE_DESKTOP_SESSION
   if [ ! -d "${dir}/.git" ]; then return 1; fi
   pushd "${dir}" > /dev/null
   local account="$(git config --get remote.origin.url | sed 's/.*://')"
   ssh-git-account "${account%%/*}"
   local value="$(eval ${function})"
   local code=$?
+  if [ "$crd_set" = "1" ]; then export CHROME_REMOTE_DESKTOP_SESSION=1; fi
   if [ ! -z "${value}" ]; then echo "${value}"; else return ${code}; fi
   popd > /dev/null
 }

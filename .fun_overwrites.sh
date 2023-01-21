@@ -5,10 +5,9 @@ _sources+=("$(basename ${_this})")
 ssh-git-account() {
   local account="${1}"
   case ${account} in
-    *andiant*|DDPMCP) ssh-load-keys mandiant git;;
-    opera) ssh-load-keys opera;;
-    analyticsMD|Redw0od) ssh-load-keys stanton;;
-    *) ssh-load-keys stanton;;
+    *andiant*|DDPMCP) ssh-load-keys mandiant;;
+    Redw0od) ssh-load-keys stanton;;
+    *) ssh-load-keys mandiant;;
   esac
 } 
 
@@ -214,3 +213,5 @@ zookeeper-broker() {
   local server=${2:-$ZOOKEEPER_ADDRESS}
   zkcli -server ${server} get /brokers/ids/${id}
 }
+
+path-prepend "/usr/local/google"

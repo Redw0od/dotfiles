@@ -1,23 +1,30 @@
 #!/usr/bin/env bash
 UNINSTALL="${1}"
+
+# Archive Previous Backup
 if [ -d "${HOME}/backup/dotfiles" ] && [ -z ${UNINSTALL} ]; then
 	mv "${HOME}/backup/dotfiles" "${HOME}/backup/dotfiles$(date +%s)"
 fi
+
+# Iterate through scripts and copy to home dir
 for script in $(/bin/ls -A . ); do
 	case "${script}" in
 		.git|.gitignore|LICENSE|README.md|install.sh)
 			continue;;
 		.fun_overwrites.sh|.secrets.sh)
-			if [ ! -f "${HOME}/${script}" ] && [ -z ${UNINSTALL} ]; then
+			# Backup existing script
+			if [ ! -f "${HOME}/${script}" ] && [ -z "${UNINSTALL}" ]; then
 				cp  "${script}" "${HOME}/${script}" 
 			fi
-			if [ -n ${UNINSTALL} ]; then
+			# Remove if Uninstalling
+			if [ -n "${UNINSTALL}" ]; then
 				rm -i "${HOME}/${script}" 
 			fi
 			continue;;
 		.profile)
 			if [ -f "${HOME}/.bash_profile" ]; then
-				if [ -z ${UNINSTALL} ]; then
+				# Backup existing script
+				if [ -z "${UNINSTALL}" ]; then
 					mkdir -p "${HOME}/backup/dotfiles"
 					mv "${HOME}/.bash_profile" "${HOME}/backup/dotfiles/${script}"
 				else
@@ -26,12 +33,14 @@ for script in $(/bin/ls -A . ); do
 			fi
 			;&
 		*)
-			if [ -f "${HOME}/${script}" ] && [ -z ${UNINSTALL} ]; then
+			# Backup existing script
+			if [ -f "${HOME}/${script}" ] && [ -z "${UNINSTALL}" ]; then
 				mkdir -p "${HOME}/backup/dotfiles"
 				mv "${HOME}/${script}" "${HOME}/backup/dotfiles/${script}"
 			fi
 
-			if [ -z ${UNINSTALL} ]; then
+			# Create link in home dir to each script in git repo
+			if [ -z "${UNINSTALL}"]; then
 				ln -fs "$(pwd)/${script}" "${HOME}"
 			else
 				if [ -L "${HOME}/${script}" ]; then

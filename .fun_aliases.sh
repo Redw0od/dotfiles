@@ -2,6 +2,7 @@ sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
+UTILITIES+=("terragrunt" "netstat" "shutdown" "tree" "tar" "openssl" )
 
 alias tg='terragrunt'
 alias tgplan='rm -rf .terragrunt-cache;tg plan'
@@ -111,8 +112,6 @@ alias logs="sudo find /var/log -type f -exec file {} \; | grep 'text' | cut -d' 
 # SHA1
 alias sha1='openssl sha1'
 alias kubeclt='echo DUMBASS;kubectl'
-
-
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then

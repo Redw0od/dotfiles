@@ -11,9 +11,8 @@ _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
 declare -a UTILITIES
-UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk" "notify-send"
-"tail" "head" "less" "vim" "ps" "ping" "netstat" "shutdown" "tar"
-"openssl" "grep" )
+UTILITIES=("date" "tty" "basename" "eval" "sed" "awk" "mpstat"
+"tail" "vim" "grep" )
 
 #######################################################
 # SOURCED ALIAS'S AND SCRIPTS
@@ -24,7 +23,7 @@ if [ -f /etc/zshrc ]; then
 	source /etc/zshrc
 fi
 
-if [ -f "${HOME}/.secrets.sh" ] ; then
+if [ -f "${HOME}/.secrets.sh" ]; then
 	source "${HOME}/.secrets.sh"
 fi
 
@@ -41,7 +40,6 @@ if [ -f "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
 
-
 #######################################################
 # EXPORTS
 #######################################################
@@ -54,7 +52,6 @@ export NPM_TOKEN=${SECRET_NPM_TOKEN}
 export GITLAB_TOKEN=${NPM_TOKEN}
 export GITLAB_NPM_TOKEN=${NPM_TOKEN}
 export KUBECONFIG="${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml"
-export TG_ROOT="${HOME}/git/platform/terraform-modules"
 export GOPATH="$HOME/go"
 export LAST_STATUS=0
 export DEBUG_LOG="${HOME}/tmp/debug.log"
@@ -75,7 +72,12 @@ export VISUAL=vim
 # To have colors for ls and all grep commands such as grep, egrep and zgrep
 export COLOR_MODE="dark"
 export CLICOLOR=1
-export LS_COLORS='no=00:fi=00:di=01;34:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:*.xml=00;31:'
+export LS_COLORS='no=00:fi=00:di=01;38:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:*.xml=00;31:'
+if [ ${COLOR_MODE} = "dark" ]; then
+	LS_COLORS="${LS_COLORS}:di=01;36:"
+else
+	LS_COLORS="${LS_COLORS}:di=01;34:"
+fi
 alias grep="grep --color=auto"
 
 # Color for manpages in less makes manpages a little easier to read
@@ -87,25 +89,36 @@ export LESS_TERMCAP_so=$'\E[01;44;33m'
 export LESS_TERMCAP_ue=$'\E[0m'
 export LESS_TERMCAP_us=$'\E[01;32m'
 
-exec {funlog}>${DEBUG_LOG}
-if [ "${VERBOSE}" = "true" ]; then
-	echo "Loaded shell files:" >&$funlog
-	echo "${_sources[@]}" >&$funlog
+if [ ! -d "$(basename "${DEBUG_LOG%/*}")" ]; then
+	mkdir -p "${DEBUG_LOG%/*}"
 fi
+exec {funlog}>"${DEBUG_LOG}"
+export funlog=${funlog}
+if [ "${VERBOSE}" = "true" ]; then
+	echo "Loaded shell files:" >&${funlog}
+	echo "${_sources[@]}" >&${funlog}
+fi
+
 
 #######################################################
 # Set the ultimate amazing command prompt
 #######################################################
 
-alias cpu="grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'"
+cpu_usage_update() {
+	local idle="$(mpstat 1 1 | tail -n 1 | awk '{print $12}')"
+	echo "cpu: $((100-${idle%\.*})).$((100-${idle#*\.}))" > ${HOME}/.prompt
+}
+
+cpu_usage() {
+	grep 'cpu: ' ${HOME}/.prompt | awk '{print $2}'
+}
 
 __setprompt () {
 	local LAST_COMMAND=$? # Must come first!
-
+	(cpu_usage_update &)
 	# Show error exit code if there is one
 	if [ $LAST_COMMAND != 0 ]; then
-		# PS1="\[${color[red]}\](\[${color[lightred]}\]ERROR\[${color[red]}\])-(\[${color[lightred]}\]Exit Code \[${color[white]}\]${LAST_COMMAND}\[${color[red]}\])-(\[${color[lightred]}\]"
-		PS1="${color[darkgray]}(${color[lightred]}ERROR${color[darkgray]})-(${color[red]}Exit Code ${color[lightred]}${LAST_COMMAND}${color[darkgray]})-(${color[red]}"
+		PS1="${color[ps1param]}(${color[ps1errorval]}ERROR${color[ps1param]})-(${color[ps1error]}Exit Code ${color[ps1errorval]}${LAST_COMMAND}${color[ps1param]})-(${color[ps1error]}"
 		if [ $LAST_COMMAND == 1 ]; then
 			PS1+="General error"
 		elif [ $LAST_COMMAND == 2 ]; then
@@ -139,51 +152,47 @@ __setprompt () {
 		else
 			PS1+="Unknown error code"
 		fi
-		PS1+="${color[darkgray]})${color[default]}\n"
+		PS1+="${color[ps1param]})${color[default]}\n"
 	else
 		PS1=""
 	fi
 
 	# Date
-	PS1+="${color[darkgray]}($(set-color 196)$(date +%a) $(set-color 208)$(date +%b-'%-d')" # Date
-	PS1+=" $(set-color 220) $(date +'%-I':%M:%S%P)${color[darkgray]})-" # Time
+	PS1+="${color[ps1param]}(${color[ps1day]}$(date +%a) ${color[ps1day]}$(date +%b-'%-d')" # Date
+	PS1+=" ${color[ps1time]}$(date +'%-I':%M:%S%P)${color[ps1param]})${color[ps1dash]}-" # Time
 
 	# CPU
-	PS1+="($(set-color 112)CPU $(set-color 34)$(cpu)%"
+	PS1+="${color[ps1param]}(${color[ps1cpu]}CPU ${color[ps1cpuval]}$(cpu_usage)%"
 
 	# Jobs
-	PS1+="${color[darkgray]}:${color[green]}\j"
+	PS1+=" ${color[ps1jobs]}jobs${color[ps1param]}:${color[ps1jobs]}\j${color[ps1param]})${color[ps1dash]}-"
 
-	# Network Connections (for a server - comment out for non-server)
-	# PS1+="\[${color[darkgray]}\]:\[${color[green]}\]Net $(awk 'END {print NR}' /proc/net/tcp)"
+	# Vault
+	PS1+="${color[ps1param]}(${color[ps1param]}vault${color[ps1bracket]}[$(vault-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
-	PS1+="${color[darkgray]})-"
-	PS1+="($(set-color 24)vault${color[gray]}[$(vault-ps1-color)${color[gray]}]${color[darkgray]})-"
+	# AWS
+	PS1+="${color[ps1param]}(${color[teal]}aws${color[ps1bracket]}[$(aws-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
-	PS1+="(${color[teal]}aws${color[gray]}[$(aws-ps1-color)${color[gray]}]${color[darkgray]})-"
-
-	PS1+="(${color[blue]}kube${color[gray]}[$(kube-ps1-color)${color[gray]}]${color[darkgray]})-"
-
-	#PS1+="$(git-ps1-color)"
-
+	# Kubernetes
+	PS1+="${color[ps1param]}(${color[blue]}kube${color[ps1bracket]}[$(kube-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
 	# User and server
-	local SSH_IP=`echo $SSH_CLIENT | awk '{ print $1 }'`
-	local SSH2_IP=`echo $SSH2_CLIENT | awk '{ print $1 }'`
+	local SSH_IP=$(echo $SSH_CLIENT | awk '{ print $1 }')
+	local SSH2_IP=$(echo $SSH2_CLIENT | awk '{ print $1 }')
 	if [ $SSH2_IP ] || [ $SSH_IP ] ; then
-		PS1+="(${color[darkblue]}\u@\h"
+		PS1+="${color[ps1param]}(${color[ps1user]}\u@\h"
 	else
-		PS1+="(${color[darkblue]}\u"
+		PS1+="${color[ps1param]}(${color[ps1user]}\u"
 	fi
 
 	# Current directory
-	PS1+="${color[darkgray]}:${color[blue]}\w${color[darkgray]})-"
+	PS1+="${color[ps1param]}:${color[ps1dir]}\w${color[ps1param]})${color[ps1dash]}-"
 
 	# Total size of files in current directory
-	PS1+="(${color[burgandy]}$(/bin/ls -lah | /bin/grep -m 1 total | /bin/sed 's/total //')${color[darkgray]}:"
+	PS1+="${color[ps1param]}(${color[ps1size]}$(\ls -lah | grep -m 1 total | sed 's/total //')${color[ps1param]}:"
 
 	# Number of files
-	PS1+="${color[purple]}$(/bin/ls -A -1 | /usr/bin/wc -l)${color[darkgray]})"
+	PS1+="${color[ps1files]}$(trim $(\ls -A -1 | wc -l ))${color[ps1param]})"
 
 	# Skip to the next line
 	PS1+="${color[default]}\n"
@@ -195,12 +204,12 @@ __setprompt () {
 	fi
 
 	# PS2 is used to continue a command using the \ character
-	PS2="\[${color[darkgray]}\]>\[${color[default]}\] "
+	PS2="\[${color[ps1param]}\]>\[${color[default]}\] "
 
 	# PS3 is used to enter a number choice in a script
 	PS3='Please enter a number from above list: '
 
 	# PS4 is used for tracing a script in debug mode
-	PS4="${color[darkgray]}+${color[default]} "
+	PS4="${color[ps1param]}+${color[default]} "
 }
 PROMPT_COMMAND='__setprompt'

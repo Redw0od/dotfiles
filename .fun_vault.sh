@@ -11,12 +11,12 @@ common-help "${abbr}" "${_this}"
 
 # PS1 output for Vault profile
 vault-ps1-color() {
-  case "${VAULT_PROFILE}" in
+  case "${VAULT_PROFILE,,}" in
     gov)
       echo -e "${ORANGE}${VAULT_PROFILE}${color[default]}"
       ;;
     test)
-      echo -e "${color[gray]}${VAULT_PROFILE}${color[default]}"
+      echo -e "${color[yellow]}${VAULT_PROFILE}${color[default]}"
       ;;
     *)
       echo -e "${color[red]}${BOLD}${VAULT_PROFILE}${color[default]}"
@@ -249,6 +249,18 @@ vault-check-server-binary() {
     kubectl $*
   fi
 }
+
+vault-proxy() {
+  proxy-set 10100
+  \vault $@
+  if [ -n ${PROXY} ]; then
+    eval ${PROXY}
+  else
+    noproxy
+  fi
+}
+
+alias vault=vault-proxy
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then

@@ -25,7 +25,9 @@ es-kb-get() {
   local endpoint="${2}"
   local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
   local eURL="${KIBANA[${cluster}]}${endpoint}"
+  proxy-check ${cluster}
   es-curl ${eURL} ${eKEY}
+  proxy-restore
 }
 
 # Curl Kibana with API key
@@ -39,7 +41,9 @@ es-kb-post() {
   local H1="Content-Type: application/json"
   local H2="Authorization: ApiKey ${eKEY}"
   local H3="kbn-xsrf: true"
+  proxy-check ${cluster}
   curl -sk -XPOST ${eURL} -H "${H1}" -H "${H2}" -H "${H3}" -d"${eDATA}"
+  proxy-restore
 }
 
 # Curl Elasticsearch with API key
@@ -49,7 +53,9 @@ es-get() {
   local endpoint="${2}"
   local eKEY=$(echo -n "${APIKEYS[${cluster}]}" | base64 | tr -d \\r)
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
+  proxy-check ${cluster}
   es-curl "${eURL}" "${eKEY}"
+  proxy-restore
 }
 
 # Curl PUT Elasticsearch with API key
@@ -62,7 +68,9 @@ es-put() {
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
   local H2="Authorization: ApiKey ${eKEY}"
+  proxy-check ${cluster}
   curl -sk -XPUT ${eURL} -H "${H1}" -H "${H2}" -d "${eDATA}"
+  proxy-restore
 }
 
 # Curl DELETE Elasticsearch with API key
@@ -74,7 +82,9 @@ es-delete() {
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
   local H2="Authorization: ApiKey ${eKEY}"
+  proxy-check ${cluster}
   curl -sk -XDELETE ${eURL} -H "${H1}" -H "${H2}"
+  proxy-restore
 }
 
 # Curl POST Elasticsearch with API key
@@ -87,7 +97,9 @@ es-post() {
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
   local H2="Authorization: ApiKey ${eKEY}"
+  proxy-check ${cluster}
   curl -sk -XPOST ${eURL} -H "${H1}" -H "${H2}" -d "${eDATA}"
+  proxy-restore
 }
 
 # Curl PUT Elasticsearch with User and Password
@@ -99,7 +111,9 @@ es-put-user() {
   local AUTH="${4}"
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
+  proxy-check ${cluster}
   curl -u "${AUTH}" -k -XPUT ${eURL} -H "${H1}" -d "${eDATA}"
+  proxy-restore
 }
 
 # Curl POST Elasticsearch with User and Password
@@ -112,7 +126,9 @@ es-post-user() {
   local eURL="${ELASTIC[${cluster}]}${endpoint}"
   local H1="Content-Type: application/json"
   #echo "curl -u \"${auth}\" -k -XPOST ${eURL} -H \"${H1}\" -d \"${eDATA}\""
+  proxy-check ${cluster}
   curl -u "${auth}" -sk -XPOST ${eURL} -H "${H1}" -d "${eDATA}"
+  proxy-restore
 }
 
 # Curl POST Elasticsearch with User and Password

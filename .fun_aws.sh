@@ -3,7 +3,7 @@ sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
-UTILITIES+=("aws" "echo" "awk" "grep" "date" "expr" "jq" "column" "base64" "cut" "rev" "sleep")
+UTILITIES+=("aws" "jq" "column" "base64" "expect" "gauth" )
 abbr='aws'
 
 # Create help function for this file
@@ -16,19 +16,20 @@ aws-ps1-color() {
       echo -e "${color[red]}${BOLD}${AWS_PROFILE}${color[blue]}"
       ;;
     *stage*)
-      echo -e "${color[mustard]}${AWS_PROFILE}${color[blue]}"
-      ;;
-    *dev*)
       echo -e "${color[yellow]}${AWS_PROFILE}${color[blue]}"
       ;;
+    *dev*)
+      echo -e "${color[green]}${AWS_PROFILE}${color[blue]}"
+      ;;
     *)
-      echo -e "${color[orange]}${AWS_PROFILE}${color[blue]}"
+      echo -e "${color[white]}${AWS_PROFILE}${color[blue]}"
       ;;
   esac
 }
 
 # Copy AWS session details to temp file
 # Pass profile name as an argument
+# aws-save [AWS_PROFILE]
 aws-save() {
   local suffix="-${1:-$AWS_PROFILE}"
   local session_file="/tmp/aws-session${suffix}"
@@ -42,6 +43,7 @@ aws-save() {
 }
 
 # Load AWS session details from temp file
+# aws-load [AWS_PROFILE]
 aws-load() {
   local suffix="-${1:-$AWS_PROFILE}"
   local session_file="/tmp/aws-session${suffix}"
@@ -54,11 +56,10 @@ aws-session-time() {
 }
 
 # Loads aws profile and refreshes token if needed
-# Call function with aws profile name as arguemnt
+# aws-apply-profile [AWS_PROFILE] [-f]
 aws-apply-profile() {
   local role="${1:-$AWS_PROFILE}"
   local force="${2}"
-  echo "aws-apply-profile ${role} ${force}"
   aws-load ${role}
   if [ "${force}" = "-f" ]; then 
     aws-expect ${role}
@@ -73,9 +74,8 @@ aws-apply-profile() {
   aws-load ${role}
 }
 
-
 # Parse credentials file for role Arn of specific profile
-# Call function with aws profile name as argument
+# aws-extract-role-arn [AWS_PROFILE] [AWS_CRED_FILE]
 aws-extract-role-arn() {
   local profile="${1}"
   local cred_file=${2:-"$HOME/.aws/config"}
@@ -100,7 +100,7 @@ aws-extract-role-arn() {
 }
 
 # Parse config file for mfa serial Arn of specific profile
-# Call function with aws profile name as argument
+# aws-extract-role-arn [AWS_PROFILE] [AWS_CRED_FILE]
 aws-extract-mfa-arn() {
   local profile="${1}"
   local cred_file=${2:-"$HOME/.aws/config"}
@@ -125,6 +125,8 @@ aws-extract-mfa-arn() {
 }
 
 
+# Build expect script to provide MFA token when prompted
+# aws-expect [AWS_PROFILE]
 aws-expect() {
   local profile="${1}"
   local token_code="$(aws-mfa-token ${profile})"
@@ -152,13 +154,12 @@ aws-save ${profile}" > /tmp/expect_aws_token.sh
 
 
 # Load aws profile and export session variables
-# aws-assume-role <profile>
+# aws-assume-role  AWS_PROFILE]
 aws-assume-role() {
   local profile="${1}"
   local arn="$(aws-extract-role-arn ${profile})"
   local mfa="$(aws-extract-mfa-arn ${profile})"
   local token_code="$(aws-mfa-token ${profile})"
-
 
   echo "token: ${token_code}"
   mfa="${mfa:+"--serial-number ${mfa}"}"
@@ -175,7 +176,7 @@ aws-assume-role() {
 }
 
 # Generate MFA token and pass to awscli
-# aws-mfa-token <mfa profile>
+# aws-mfa-token [AWS_PROFILE]
 aws-mfa-token() {
   local profile="${1}"
   local token_code=""
@@ -196,9 +197,8 @@ aws-whoami() {
   echo "You are in account: ${alias} (${account}) as ${arn}"
 }
 
-
 # Report RDS cluster details
-# Call function with region as argument
+# aws-report-rds-clusters [AWS_REGION]
 aws-report-rds-clusters() {
   local region=${1:-us-west-2}
   aws rds describe-db-clusters --region ${region} 2> /dev/null | jq '.DBClusters[] | [ .DBClusterIdentifier, .Engine, .EngineVersion, .Status, .DBSubnetGroup ]'
@@ -232,7 +232,7 @@ aws-report-all-rds-clusters() {
 
 
 # Create RDS snapshot that create Tags for all settings
-# Call function with rds cluster name as arguement
+# aws-rds-snapshot <RDS_CLUSTER_NAME>
 aws-rds-snapshot() {
   declare -A tags=()
   local cluster_name="${1}"
@@ -294,6 +294,8 @@ aws-ecr-purge() {
   done
 }
 
+# List all ECR repositories in a region
+# aws-ecr-repositories [region]
 aws-ecr-repositories() {
   local region="${1:+"--region ${1}"}"
   aws ecr describe-repositories | jq -r '.repositories[] | [.repositoryName, .repositoryUri] | @tsv' | sort | column  -t -s$'\t' -n -
@@ -326,6 +328,7 @@ aws-dms-start-tasks() {
 }
 
 # Delete all current assessment reports for DMS tasks
+# aws-dms-delete-reports <S3_BUCKET_NAME>
 aws-dms-delete-reports() {
   aws-apply-profile
   local bucket_name="${1}"
@@ -366,7 +369,7 @@ aws-dms-delete-tasks() {
 ######### EC2 Functions
 
 # Filter EC2 instances by name
-# aws-ec2-name some-name*
+# aws-ec2-name <some-name*>
 aws-ec2-name() {
   local name_filter="${1}"
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
@@ -376,7 +379,7 @@ aws-ec2-name() {
 }
 
 # List VPC details by region
-# aws-list-vpcs region
+# aws-list-vpcs [region] [table]
 aws-list-vpcs() {
   local region="${1:+--region ${1}}"
   local format="${2:-table}"
@@ -400,7 +403,7 @@ aws-list-vpcs() {
 }
 
 # List Subnets details by region
-# aws-list-subnets region
+# aws-list-subnets [region]
 aws-list-subnets() {
   local region="${1:+--region ${1}}"
   local subnets vpc_id vpc2 subnet_json subnet_table
@@ -435,6 +438,7 @@ aws-get-secret() {
   aws secretsmanager get-secret-value --secret-id ${secret} ${region} | jq -r '.SecretString' 
 }
 
+# Check for aws cli updates
 aws-check-binary() {
   if [ -z "$(command -v aws)" ]; then
     echo "install awscli"

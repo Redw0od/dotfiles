@@ -91,6 +91,78 @@ ssh-ping () {
 	done
 }
 
+# List ssh tunnels defined in config file
+# ssh-list-tunnels [path_to_config]
+ssh-list-tunnels () {
+	local config=${1:-"${HOME}/.ssh/config"}
+	local host port
+	while read; do
+		if [ -n "$(echo "${REPLY}"| grep '^Host ' )" ]; then
+			host="$(echo "${REPLY}"| awk '{print $2}')"
+		elif [ -n "$(echo "${REPLY}"| grep 'DynamicForward ' )" ]; then
+			port="$(echo "${REPLY}"| awk '{print $2}')"		
+		fi
+		if [ -n "${host}" ] && [ -n "${port}" ]; then
+			echo "${host} ${port}"
+			host=""
+			port=""
+		fi
+	done <<<$(cat ${config})
+}
+
+# Verify an ssh tunnel is listening by name
+# ssh-check-tunnel [host_name_from_config] [path_to_config]
+ssh-check-tunnel() {
+	local hostname=${1}
+	local config=${2:-"${HOME}/.ssh/config"}
+	local host port
+	while read tunnel; do
+		host="$(echo ${tunnel} | awk '{print $1}')"
+		port="$(echo ${tunnel} | awk '{print $2}')"
+		if [ "${hostname}" = "${host}" ]; then
+			echo "$(netstat -tulpn 2> /dev/null | grep ":${port} ")"
+			return
+		elif [ -z "${hostname}" ]; then
+			echo "$(netstat -tulpn 2> /dev/null | grep ":${port} ")"
+		fi
+	done <<<$(ssh-list-tunnels ${config})
+}
+
+# Verify an ssh tunnel is listening by name
+# ssh-start-tunnel [host_name_from_config] [path_to_config]
+ssh-start-tunnel() {
+	local hostname=${1}
+	local config=${2:-"${HOME}/.ssh/config"}
+	local host port
+	while read tunnel; do
+		host="$(echo ${tunnel} | awk '{print $1}')"
+		port="$(echo ${tunnel} | awk '{print $2}')"
+		if [ "${hostname}" = "${host}" ] && [ -z "$(ssh-check-tunnel ${host})" ]; then
+			ssh -fN ${host}
+			return
+		fi
+		if [ -z "${hostname}" ] && [ -z "$(ssh-check-tunnel ${host})" ]; then
+			ssh -fN ${host}
+		fi
+	done <<<$(ssh-list-tunnels ${config})
+}
+
+# Verify an ssh tunnel is listening by name
+# ssh-check-tunnel [host_name_from_config] [path_to_config]
+ssh-ps1-tunnels() {
+	local config=${1:-"${HOME}/.ssh/config"}
+	local host port
+	while read tunnel; do
+		host="$(echo ${tunnel} | awk '{print $1}')"
+		port="$(echo ${tunnel} | awk '{print $2}')"
+		if [ -n "$(netstat -tulpn 2> /dev/null | grep ":${port} ")" ]; then
+			echo -n "${color[bright]}${color[success]}↑${color[default]}"
+		else
+			echo -n "${color[fail]}${color[bright]}↓${color[default]}"
+		fi
+	done <<<$(ssh-list-tunnels ${config})
+}
+
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"

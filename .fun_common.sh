@@ -65,6 +65,47 @@ common-help() {
 }"
 }
 
+# Set shell proxy by cluster
+# proxy-check 
+proxy-check() {
+	local cluster=${1}
+	case "${cluster,,}" in
+		prod)
+			proxy-set 10101;;
+		*)
+			proxy-set 10100;;
+	esac
+}
+
+# Set shell proxy to value stored in $PROXY
+# proxy-restore 
+proxy-restore() {
+	if [ -n "${PROXY}" ]; then
+		eval "${PROXY}"
+	fi
+}
+
+# Remove shell proxy settings
+# proxy-clear 
+proxy-clear() {
+	unset https_proxy
+	unset HTTPS_PROXY
+	unset HTTP_PROXY
+	unset http_proxy 
+	unset PROXY
+}
+
+# Set shell proxy variables
+# proxy-set [port] [protocol]
+proxy-set() {
+	local port=${1:-10100}
+	local protocol=${2:-socks5}
+	export http_proxy=${protocol}://localhost:${port}
+	export HTTP_PROXY=${protocol}://localhost:${port}
+	export https_proxy=${protocol}://localhost:${port}
+	export HTTPS_PROXY=${protocol}://localhost:${port}
+}
+
 # Apply color to echo more ledgibly
 printc() {
 	local color_name="${1}"
@@ -383,41 +424,6 @@ ver() {
 			;;
 	esac
 }
-
-# Automatically install the needed support files for this .bashrc file
-install-bashrc-support() {
-	local dtype
-	dtype=$(distribution)
-
-	case ${dtype} in
-		"redhat")
-			sudo yum install multitail tree 
-			;;
-		"suse")
-			sudo zypper install multitail
-			sudo zypper install tree
-			;;
-		"debian")
-			sudo apt-get install multitail tree net-tools
-			;;
-		"gentoo")
-			sudo emerge multitail
-			sudo emerge tree
-			;;
-		"mandriva")
-			sudo urpmi multitail
-			sudo urpmi tree
-			;;
-		"slackware")
-			echo "No install support for Slackware"
-			;;
-		*)
-			echo "Error: Unknown distribution"
-			return 1
-			;;
-	esac
-}
-
 # Show current network information
 netinfo() {
 	local dtype=$(distribution)
