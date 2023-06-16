@@ -3,7 +3,7 @@ sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
-UTILITIES+=("aws" "jq" "column" "base64" "expect" "gauth" )
+UTILITIES+=("aws" "jq" "column" "base64" "expect" )
 abbr='aws'
 
 # Create help function for this file
@@ -61,12 +61,12 @@ aws-apply-profile() {
   local role="${1:-$AWS_PROFILE}"
   local force="${2}"
   aws-load ${role}
-  if [ "${force}" = "-f" ]; then 
+  if [ "${force}" = "-f" ]; then
     aws-expect ${role}
     aws-save ${role}
     return
   fi
-  if [ "$(aws sts get-caller-identity 2> /dev/null )" ] && [ $(aws-session-time) -gt 300 ]; then 
+  if [ "$(aws sts get-caller-identity 2> /dev/null )" ] && [ $(aws-session-time) -gt 300 ]; then
     echo "Session still valid for $(aws-session-time) seconds. Use -f to force refresh"
     return
   fi
@@ -242,7 +242,7 @@ aws-rds-snapshot() {
   tags+=([DBClusterParameterGroup]="$(echo $cluster_details | jq -r '.DBClusterParameterGroup')")
   tags+=([Status]="$(echo $cluster_details | jq -r '.Status')")
   tags+=([Engine]="$(echo $cluster_details | jq -r '.Engine')")
-  tags+=([EngineVersion]="$(echo $cluster_details | jq -r '.EngineVersion')")  
+  tags+=([EngineVersion]="$(echo $cluster_details | jq -r '.EngineVersion')")
   tags+=([KmsKeyId]="$(echo $cluster_details | jq -r '.KmsKeyId')")
   tags+=([IAMDatabaseAuthenticationEnabled]="$(echo $cluster_details | jq -r '.IAMDatabaseAuthenticationEnabled')")
   tags+=([AutoMinorVersionUpgrade]="$(echo $cluster_details | jq -r '.AutoMinorVersionUpgrade')")
@@ -259,7 +259,7 @@ aws-rds-snapshot() {
   tags+=([DBInstanceClass]="$(echo $writer_details | jq -r '.DBInstanceClass' )")
   local tag_line="["
 
-  for key in ${!tags[@]}; do 
+  for key in ${!tags[@]}; do
     tag_line="${tag_line} { \"Key\": \"${key}\", \"Value\": \"${tags[$key]}\" },"
   done
   tag_line="${tag_line:0:-1} ]"
@@ -309,7 +309,7 @@ aws-ecr-repositories() {
 aws-dms-start-tasks() {
   aws-apply-profile
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi; export AWS_PAGER=""
-  for json in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[] | select(.Status != "running") |  [ .Status, .ReplicationTaskArn ] | @base64' ); do 
+  for json in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[] | select(.Status != "running") |  [ .Status, .ReplicationTaskArn ] | @base64' ); do
     local status="$(echo $json | base64 --decode | jq -r .[0])"
     local arn="$(echo $json | base64 --decode | jq -r .[1])"
     case $status in
@@ -333,12 +333,12 @@ aws-dms-delete-reports() {
   aws-apply-profile
   local bucket_name="${1}"
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
-  for ARN in $(aws dms describe-replication-task-assessment-runs | jq -r '.ReplicationTaskAssessmentRuns[].ReplicationTaskAssessmentRunArn'); do 
+  for ARN in $(aws dms describe-replication-task-assessment-runs | jq -r '.ReplicationTaskAssessmentRuns[].ReplicationTaskAssessmentRunArn'); do
     aws dms delete-replication-task-assessment-run --replication-task-assessment-run-arn $ARN &
     if [ ! -z "${bucket_name}" ]; then
       aws s3 rm s3://${bucket_name}/dms/$(echo $ARN | rev | cut -d":" -f1 | rev)
     fi
-  done  
+  done
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
 
@@ -346,9 +346,9 @@ aws-dms-delete-reports() {
 aws-dms-delete-endpoints() {
   aws-apply-profile
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
-  for ARN in $(aws dms describe-endpoints | jq -r '.Endpoints[].EndpointArn'); do 
+  for ARN in $(aws dms describe-endpoints | jq -r '.Endpoints[].EndpointArn'); do
     aws dms delete-endpoint --endpoint-arn $ARN > /dev/null &
-  done  
+  done
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
 
@@ -356,13 +356,13 @@ aws-dms-delete-endpoints() {
 aws-dms-delete-tasks() {
   aws-apply-profile
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
-  for ARN in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[].ReplicationTaskArn'); do 
-    ( aws dms stop-replication-task --replication-task-arn $ARN 2>&1 /dev/null 
+  for ARN in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[].ReplicationTaskArn'); do
+    ( aws dms stop-replication-task --replication-task-arn $ARN 2>&1 /dev/null
       while [ "$(aws dms describe-replication-tasks --filters Name=replication-task-arn,Values=$ARN | jq -r '.ReplicationTasks[].Status')" != "stopped" ]; do
         sleep 10
       done
       aws dms delete-replication-task --replication-task-arn $ARN 2>&1 /dev/null ) &
-  done  
+  done
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
 
@@ -386,16 +386,16 @@ aws-list-vpcs() {
   local vpcs vpc_object vpc
   local vpc_json="$(aws ec2 describe-vpcs ${region})"
   while read -r vpc; do
-    if [[ -n "$(echo ${vpc} | jq '.Tags[]' 2> /dev/null)" ]]; then 
+    if [[ -n "$(echo ${vpc} | jq '.Tags[]' 2> /dev/null)" ]]; then
       vpc_object=$(echo [${vpc}] | jq 'map({VpcId,CidrBlock,Name: (.Tags[]|select(.Key=="Name")|.Value)})')
     else
-      echo "No Tags" 
+      echo "No Tags"
       vpc_object=$(echo [${vpc}] | jq 'map({VpcId,CidrBlock})')
     fi
     vpcs="$(echo ${vpcs} | jq ". + ${vpc_object}")"
     vpcs="${vpcs:-$vpc_object}"
   done <<< "$(echo "${vpc_json}" | jq -c '.Vpcs[]')"
-  if [[ "${format}" == "table" ]]; then 
+  if [[ "${format}" == "table" ]]; then
     echo ${vpcs} | jq -r '.[]| [.VpcId, .CidrBlock, .Name] | @tsv' | column -t -s$'\t'
   else
     echo "${vpcs}"
@@ -412,7 +412,7 @@ aws-list-subnets() {
     vpc_id=$(echo "${vpc}" | jq -r '.VpcId')
     vpc2=$(echo "${vpc}" | jq -r '. | .["VpcName"] = .Name | .["VpcCidrBlock"] = .CidrBlock | del(.CidrBlock, .Name)')
     subnet_json=$(aws ec2 describe-subnets --filter Name=vpc-id,Values=${vpc_id} ${region})
-    if [ "$(echo ${subnet_json} | jq '.Subnets[].Tags[]' 2> /dev/null)" ]; then 
+    if [ "$(echo ${subnet_json} | jq '.Subnets[].Tags[]' 2> /dev/null)" ]; then
       subnets="$(echo ${subnet_json} | jq "[.[]|map({SubnetId,AvailabilityZone,CidrBlock,Name: (.Tags[]|select(.Key==\"Name\")|.Value)})| .[] + ${vpc2}]")"
     else
       subnets="$(echo ${subnet_json} | jq "[.[]|map({SubnetId,AvailabilityZone,CidrBlock})| .[] + ${vpc2}]")"
@@ -427,7 +427,7 @@ aws-list-subnets() {
 # aws-list-secrets [region]
 aws-list-secrets() {
   local region="${1:+--region ${1}}"
-  aws secretsmanager list-secrets ${region} | jq -r '.SecretList[].Name' 
+  aws secretsmanager list-secrets ${region} | jq -r '.SecretList[].Name'
 }
 
 # List available secrets per region
@@ -435,7 +435,7 @@ aws-list-secrets() {
 aws-get-secret() {
   local secret="${1}"
   local region="${2:+--region ${2}}"
-  aws secretsmanager get-secret-value --secret-id ${secret} ${region} | jq -r '.SecretString' 
+  aws secretsmanager get-secret-value --secret-id ${secret} ${region} | jq -r '.SecretString'
 }
 
 # Check for aws cli updates
@@ -445,7 +445,7 @@ aws-check-binary() {
     return 1
   fi
   local version="$( aws --version | awk -F"[ \t/]+" '{print $2}')"
-  local latest="$(curl -s https://raw.githubusercontent.com/aws/aws-cli/v2/CHANGELOG.rst | head -n 5 | grep '^[0-9]')"  
+  local latest="$(curl -s https://raw.githubusercontent.com/aws/aws-cli/v2/CHANGELOG.rst | head -n 5 | grep '^[0-9]')"
   if [ "${version}" != "${latest}" ]; then
     echo "New awscli version available. Current: ${version}, Latest: ${latest}"
   fi

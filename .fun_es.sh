@@ -182,7 +182,7 @@ es-list-users() {
 es-list-aliases() {
   local cluster="${1}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
-  local indices=$(es-get ${cluster} /_cat/aliases?h=index | sort -u )
+  local indices=$(es-get ${cluster} /_cat/aliases?h=alias | sort -u )
   printf "%s\n" ${indices[@]}
 }
 
@@ -227,7 +227,7 @@ es-get-index-size() {
 }
 
 # Get index size in kilobytes
-# es-get-index-size <cluster> <index> [size kb limit] [minimum age days]
+# es-get-task <cluster> <task_id> 
 es-get-task() {
   local cluster="${1}"
   local task_id="${2}"
@@ -278,6 +278,7 @@ es-set-ilm-alias() {
 }
 
 # Reindex and drop documents that match $INDEX_FILTER
+# Use this function to reduce an index size buy deleteing documents
 # es-reduce-index <cluster> <[index_array]> [new_index_name] [$INDEX_FILTER]
 es-reduce-index() {
   local cluster="${1}"
@@ -335,6 +336,7 @@ es-reduce-index() {
 }
 
 # Reindex indicies and drop documents that match filter
+# Use this function to reduce multiple indicies sizes by deleting documents
 # es-reduce-indicies <cluster> <index_pattern> [minimum age days] [$INDEX_FILTER]
 es-reduce-indicies() {
   local cluster="${1}"

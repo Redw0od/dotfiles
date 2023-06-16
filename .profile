@@ -52,7 +52,7 @@ fi
 
 echos "Shell scripts depend on many additional tools."
 echos "This is a list of tools used in these functions that are missing on your system:"
-common-utilities "${UTILITIES[@]}"
+common-utilities "${UTILITIES[@]}" >&2
 echo ""
 
 if [ ! -f "${HOME}/tmp/version_check" ] && [ -z "$(find "${HOME}/tmp/version_check" -mmin -1440 -type f -print)"]; then

@@ -9,7 +9,7 @@ ssh-git-account() {
     Redw0od) ssh-load-keys stanton;;
     *) ssh-load-keys mandiant;;
   esac
-} 
+}
 
 kube-profile() {
    export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
@@ -28,7 +28,7 @@ kube-profile() {
            ;;
    esac
    export KUBE_ENV="${1}"
-   echo "Current k8s Context: $(kubectl config current-context)" 
+   echo "Current k8s Context: $(kubectl config current-context)"
 }
 # PS1 output for Kubernets Context
 kube-ps1-color() {
@@ -49,7 +49,7 @@ kube-ps1-color() {
   esac
 }
 
-mad-assume() { 
+mad-assume() {
 	local name="${1}"
 	local force="${2}"
 	export MAD_PROFILE="${name}"
@@ -127,7 +127,7 @@ kube-profile() {
    case "$1" in
        prod)
            export KOPS_CLUSTER_NAME=${KUBE[GRUNT]}
-           kubectl config use-context grunt 
+           kubectl config use-context grunt
            ;;
        apse1)
            export KOPS_CLUSTER_NAME=${KUBE[APSE1]}
@@ -147,11 +147,11 @@ kube-profile() {
            ;;
        dev)
            export KOPS_CLUSTER_NAME=${KUBE[MORDIN]}
-           kubectl config use-context mordin 
+           kubectl config use-context mordin
            ;;
        corp)
            export KOPS_CLUSTER_NAME=${KUBE[LEGION]}
-           kubectl config use-context legion.k8s.corp.respond-ops.com 
+           kubectl config use-context legion.k8s.corp.respond-ops.com
            ;;
        gov)
            export KOPS_CLUSTER_NAME=
@@ -162,7 +162,7 @@ kube-profile() {
            ;;
    esac
    export KUBE_ENV="${1}"
-   echo "Current k8s Context: $(kubectl config current-context)" 
+   echo "Current k8s Context: $(kubectl config current-context)"
 }
 
 aws-mfa-token() {
@@ -176,30 +176,30 @@ aws-mfa-token() {
 }
 
 vault-profile() {
-  local profile="${1^^}"
+  local profile="$(upper ${1})"
   local stage="${2:-prod}"
   case $profile in
     GRUNT|MORDIN|LEGION) profile="PRIMARY";;
   esac
   export VAULT_ADDR="${VAULTS[${profile}]}"
   export VAULT_TOKEN="${TOKENS[${profile}]}"
-  export VAULT_SSH=~/.ssh/mandiant/mad-${stage,,}-${profile,,}-key.key
+  export VAULT_SSH=~/.ssh/mandiant/mad-$(lower ${stage})-$(lower ${profile})-key.key
   export VAULT_PROFILE="${profile}"
 }
 
 kafka-sgs() {
-  aws-ec2-name '*kafka*' | jq -r '.[] | .[].Instances[].NetworkInterfaces[].Groups[].GroupId' 
+  aws-ec2-name '*kafka*' | jq -r '.[] | .[].Instances[].NetworkInterfaces[].Groups[].GroupId'
 }
 kafka-instances() {
-  aws-ec2-name '*kafka*' | jq -r '.[] | .[].Instances[].InstanceId' 
+  aws-ec2-name '*kafka*' | jq -r '.[] | .[].Instances[].InstanceId'
 }
 
 zookeeper-sgs() {
-  aws-ec2-name '*zookeeper*' | jq -r '.[] | .[].Instances[].NetworkInterfaces[].Groups[].GroupId' 
+  aws-ec2-name '*zookeeper*' | jq -r '.[] | .[].Instances[].NetworkInterfaces[].Groups[].GroupId'
 }
 
 zookeeper-instances() {
-  aws-ec2-name '*zookeeper*' | jq -r '.[] | .[].Instances[].InstanceId' 
+  aws-ec2-name '*zookeeper*' | jq -r '.[] | .[].Instances[].InstanceId'
 }
 
 
@@ -215,3 +215,24 @@ zookeeper-broker() {
 }
 
 path-prepend "/usr/local/google"
+
+# color[ps1day]=${color[red]}
+# color[ps1date]=${color[orange]}
+# color[ps1time]=${color[mustard]}
+# color[ps1param]=${color[darkgray]}
+# color[ps1dash]=${color[darkgray]}
+# color[ps1cpu]=${color[yellow]}
+# color[ps1cpuval]=${color[lime_yellow]}
+# color[ps1job]=${color[lightgreen]}
+# color[ps1vault]=${color[green]}
+# color[ps1bracket]=${color[gray]}
+# color[ps1aws]=${color[cerulean]}
+# color[ps1awsval]=${color[red]}
+# color[ps1kube]=${color[blue]}
+# color[ps1kubeval]=${color[red]}
+# color[ps1user]=${color[purple]}
+# color[ps1dir]=${color[lightmagenta]}
+# color[ps1files]=${color[purple]}
+# color[ps1size]=${color[burgandy]}
+# color[ps1error]=${color[red]}
+# color[ps1errorval]=${color[lightred]}

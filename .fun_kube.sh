@@ -13,7 +13,7 @@ common-help "${abbr}" "${_this}"
 kube-ps1-color () {
   case "${KUBE_ENV}" in
     gov)
-      echo -e "${ORANGE}${KUBE_ENV}${color[default]}"
+      echo -e "${color[orange]}${KUBE_ENV}${color[default]}"
       ;;
     dev)
       echo -e "${color[yellow]}${KUBE_ENV}${color[default]}"
@@ -31,20 +31,20 @@ kube-ps1-color () {
 # kube-profile [cluster name]
 kube-profile () {
   local cluster_name="${1}"
-   export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
-   case "${cluster_name}" in
-       prod)
-           export KOPS_CLUSTER_NAME=${KUBE[PROD_CLUSTER]}
-           kubectl config use-context PRODCLUSTER
-           ;;
-       dev)
-           export KOPS_CLUSTER_NAME=${KUBE[DEV_CLUSTER]}
-           kubectl config use-context DEVCLUSTER
-           ;;
-       *)
-           export KOPS_CLUSTER_NAME=${KUBE[${cluster_name}]}
-           kubectl config use-context ${cluster_name}
-           ;;
+  export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
+  case "${cluster_name}" in
+    prod)
+      export KOPS_CLUSTER_NAME=${KUBE[PROD_CLUSTER]}
+      kubectl config use-context PRODCLUSTER
+      ;;
+    dev)
+      export KOPS_CLUSTER_NAME=${KUBE[DEV_CLUSTER]}
+      kubectl config use-context DEVCLUSTER
+      ;;
+    *)
+      export KOPS_CLUSTER_NAME=${KUBE[${cluster_name}]}
+      kubectl config use-context ${cluster_name}
+      ;;
    esac
    export KUBE_ENV="${cluster_name}"
    echo "Current k8s Context: $(kubectl config current-context)" 
@@ -68,13 +68,18 @@ kube-stop () {
 # Confirm all apply and deletes are against the correct cluster
 # kube-safe-apply <kubectl arguments>
 kube-safe-apply () {
+  local proxy_setting=${PROXY}
   if [[ " ${@} " =~ "apply" ]] || [[ " ${@} " =~ "delete" ]]; then 
-    echo -e -n "Running on cluster: ${color[yellow_bg]}$(echo $(kubectl config current-context)| awk '{print toupper($0)}')${color[default]}, "
+    echo -e -n "Running on cluster: ${color[black]}${color[yellow_bg]} $(upper $(kubectl config current-context)) ${color[default]}, "
     read -p "continue? (y/n) " CONFIRM
      [ ${CONFIRM} != "y" ] && echo "quit" && return
   fi
   #kubectl $*
+  if [[ "${CK8S_ALIAS}" == "legion" ]] || [[ "${CK8S_ALIAS}" == "mordin" ]] || [[ "${CK8S_ALIAS}" == "grunt" ]]; then 
+    proxy-set 10101
+  fi
   kube-check-server-binary $*
+  eval $proxy_setting
 }
 
 # Change init container tag for all deployments in a namespace
@@ -161,7 +166,7 @@ kube-es-creds () {
 kube-check-binary () {
   if [ -n "$(common-utilities 'kubectl' )" ]; then return 1; fi
   local version="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
-  local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"  
+  local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt -m 5)"  
   if [[ "${version}" != "${latest}" ]]; then
     echo "New kubectl version available. Current: ${version}, Latest: ${latest}"
   fi
@@ -170,13 +175,14 @@ kube-check-binary () {
 # Compare default kubectl version to k8s server version
 # Then attempt to download and run commands on matching versions
 kube-check-server-binary () {
-  local server="$(kubectl version -o json 2> /dev/null | jq -er '.serverVersion.gitVersion' | cut -d '-' -f 1)"
+  local server="$(kubectl --request-timeout=5s version -o json 2> /dev/null | jq -er '.serverVersion.gitVersion' | cut -d '-' -f 1)"
   if [ "${server}" = "null" ]; then echo "Failed to query server. Check VPN or reauthenticate.";return; fi
   local client="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
   if [ "${server}" != "${client}" ]; then
     if [ ! "$(command -v kubectl${server})" ]; then
       echo "Server version [${server}] mismatch client [${client}]"
-      wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/$(uname | awk '{print tolower($0)}')/amd64/kubectl
+      echo "wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/$(lower $(uname))/amd64/kubectl"
+      wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/$(lower $(uname))/amd64/kubectl --timeout=5
       if [ -f "/tmp/kubectl" ]; then
         chmod +x /tmp/kubectl
         sudo mv /tmp/kubectl /usr/local/bin/kubectl${server}
@@ -194,7 +200,7 @@ kube-check-server-binary () {
 # Pass object json and strip out ephemeral details
 # echo jsonfile > kube-export
 kube-export () {
-  jq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid) | .metadata.creationTimestamp=null'
+  jq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.selfLink) | .metadata.creationTimestamp=null'
 }
 
 kube-export-yaml () {
@@ -249,11 +255,10 @@ kube-rollover-pods () {
   IFS=$backup_ifs
 }
 
+alias k='kube-safe-apply'
+alias k8s='kube-profile'
+
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
-
-# jq patch configmap with setting
-# for ns in ${NS[@]}; do k -n $ns get configmap logstash-metrics-pipeline -o json | jq '.data."input_main.conf" |= sub("}\n}";"    security_protocol => \"SSL\"\n  }\n}")' | kubectl -n $ns apply -f -; done
-# for ns in ${NS[@]}; do k -n $ns get configmap logstash-onprem-logs-pipeline -o json | jq '.data."input_main.conf" |= sub("}\n}";"    security_protocol => \"SSL\"\n  }\n}")' | kubectl -n $ns apply -f -; done

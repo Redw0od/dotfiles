@@ -4,11 +4,6 @@ _sources+=("$(basename ${_this})")
 
 UTILITIES+=("terragrunt" "netstat" "shutdown" "tree" "tar" "openssl" )
 
-alias tg='terragrunt'
-alias tgplan='rm -rf .terragrunt-cache;tg plan'
-alias vt='vault-profile'
-alias k8s='kube-profile'
-alias k='kube-safe-apply'
 
 # alias to show the date
 alias da='date "+%Y-%m-%d %A %T %Z"'

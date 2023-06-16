@@ -135,18 +135,49 @@ cpu_usage_update() {
 	# restore prefix zero for decimal calculations
 	if [ "${usedf}" -lt 10 ]; then usedf="0${usedf}"; fi
 	echo "cpu: $((100-${idle%\.*})).${usedf}" > ${HOME}/.prompt
+	gcert_timeout_update
 }
 
 cpu_usage() {
 	grep 'cpu: ' ${HOME}/.prompt | awk '{print $2}'
 }
 
+gcert_timeout_update() {
+    local -i hours=0
+    local -i minutes=0
+    local -i expires=1200
+    local -i total_minutes=0
+    local -i expires_h=20
+    local -i expires_m=0
+    if [[ -z "(command -v gcertstatus)" ]]; then return;fi
+    while read; do
+        if [[ -n "$(echo ${REPLY} | grep WARNING)" ]]; then
+			echo "gcert: EXPIRED" >> ${HOME}/.prompt
+            return
+        fi
+        hours=$(echo ${REPLY} | awk '{print $4}' | sed 's/h//g')
+        minutes=$(echo ${REPLY} | awk '{print $5}' | sed 's/m//g')
+        total_minutes=$(((hours*60)+minutes))
+        if [[ ${expires} -gt ${total_minutes} ]]; then
+            expires=${total_minutes}
+            expires_h=${hours}
+            expires_m=${minutes}
+        fi
+    done <<<$(gcertstatus 2>&1)
+	echo "gcert: ${expires_h}h${expires_m}m" >> ${HOME}/.prompt
+}
+
+gcert_timeout() {
+	grep 'gcert: ' ${HOME}/.prompt | awk '{print $2}'
+}
+
 __setprompt () {
 	local LAST_COMMAND=$? # Must come first!
 	(cpu_usage_update &)
+	PS1="${color[default]}"
 	# Show error exit code if there is one
 	if [ $LAST_COMMAND != 0 ]; then
-		PS1="${color[ps1param]}(${color[ps1errorval]}ERROR${color[ps1param]})-(${color[ps1error]}Exit Code ${color[ps1errorval]}${LAST_COMMAND}${color[ps1param]})-(${color[ps1error]}"
+		PS1+="${color[ps1param]}(${color[ps1errorval]}ERROR${color[ps1param]})-(${color[ps1error]}Exit Code ${color[ps1errorval]}${LAST_COMMAND}${color[ps1param]})-(${color[ps1error]}"
 		if [ $LAST_COMMAND == 1 ]; then
 			PS1+="General error"
 		elif [ $LAST_COMMAND == 2 ]; then
@@ -192,8 +223,14 @@ __setprompt () {
 	# CPU
 	PS1+="${color[ps1param]}(${color[ps1cpu]}CPU ${color[ps1cpuval]}$(cpu_usage)%"
 
+	# gcert
+	PS1+=" ${color[ps1job]}gcert${color[ps1param]}:${color[ps1jobval]}$(gcert_timeout)${color[ps1param]})${color[ps1dash]}-"
+
 	# Jobs
-	PS1+=" ${color[ps1job]}jobs${color[ps1param]}:${color[ps1jobval]}\j${color[ps1param]})${color[ps1dash]}-"
+	# PS1+=" ${color[ps1job]}jobs${color[ps1param]}:${color[ps1jobval]}\j${color[ps1param]})${color[ps1dash]}-"
+
+	# Proxy
+	PS1+="${color[ps1param]}(${color[ps1vault]}proxy${color[ps1bracket]}[${PROXY:-'-'}${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
 	# Vault
 	PS1+="${color[ps1param]}(${color[ps1vault]}vault${color[ps1bracket]}[$(vault-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
@@ -202,7 +239,7 @@ __setprompt () {
 	PS1+="${color[ps1param]}(${color[ps1aws]}aws${color[ps1bracket]}[$(aws-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
 	# Kubernetes
-	PS1+="${color[ps1param]}(${color[ps1kube]}kube${color[ps1bracket]}[$(kube-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
+	PS1+="${color[ps1param]}(${color[ps1kube]}⎈${color[ps1bracket]}[$(kube-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
 	# User and server
 	local SSH_IP=$(echo $SSH_CLIENT | awk '{ print $1 }')

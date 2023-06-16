@@ -37,6 +37,9 @@ tg-check-binary () {
   fi
 }
 
+alias tg='terragrunt'
+alias tgplan='rm -rf .terragrunt-cache;tg plan'
+
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"

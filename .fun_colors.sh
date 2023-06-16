@@ -5,20 +5,22 @@ _sources+=("$(basename ${_this})")
 
 UTILITIES+=("tput" "printf")
 
+export TERM
+
 declare -A color
 
 set-color() {
-  if [ -z "$(command -v tput)" ]; then 
+  if [ -z "$(command -v tput)" ]; then
     echo "\e[38;5;${1}m"
-  else 
+  else
     tput setaf ${1}
   fi
 }
 
 set-bg-color() {
-  if [ -z "$(command -v tput)" ]; then 
+  if [ -z "$(command -v tput)" ]; then
     echo "\e[38;5;${1}m"
-  else 
+  else
     tput setab ${1}
   fi
 }
@@ -31,7 +33,7 @@ color-map() {
       tput setab ${colors}
       printf "  %3s  " ${colors}
       printf "\e[48;5;%sm  %3s   " ${colors} ${colors}
-    else 
+    else
       tput setaf ${colors}
       printf "  %3s  " ${colors}
       printf "\e[38;05;%sm  %3s   " ${colors} ${colors}
@@ -46,9 +48,9 @@ color-map() {
 }
 
 color-values() {
-  for name in "${!color[@]}" ; do 
+  for name in "${!color[@]}" ; do
     echo "${color[$name]}$name${color[default]}"
-  done | sort 
+  done | sort
   echo # New line
 }
 color[black]=$(set-color 0)
@@ -95,7 +97,7 @@ if [[ "${COLOR_MODE}" == "dark" ]]; then
 fi
 
 case ${TERM} in
-  "xterm-256color"|"xterm-kitty")
+  "xterm-256color"|"xterm-kitty"|"screen.xterm-256color")
     color[yellow_bg]=$(tput setab 3)
     color[bright]=$(tput bold)
     color[default]=$(tput sgr0)
@@ -103,7 +105,7 @@ case ${TERM} in
     color[reverse]=$(tput smso)
     color[underline]=$(tput smul)
     ;;
-  *)	
+  *)
 	  color[default]="\033[0m"
   ;;
 esac
