@@ -56,16 +56,14 @@ ssh-load-keys () {
 	if [[ -n "${SSH_AUTH_SOCK}" ]] && [[ -z "${FWD_SSH_AUTH_SOCK}" ]]; then
 		export FWD_SSH_AUTH_SOCK="${SSH_AUTH_SOCK}"
 	fi
-	if [ "${SSH_PROFILE}" != "${1}" ]; then
-		if [ ! -d "${folder}" ];then
-			echo "SSH profile folder ${folder} doesn't exist"
-			return 1
-		elif [ -f "${folder}/agent.sh" ]; then
-			source "${folder}/agent.sh"
-		else
-			unset $(export | grep ' SSH_' | awk '{print $3}' | cut -d '=' -f 1)
-		fi
-	fi
+  if [ ! -d "${folder}" ];then
+    echo "SSH profile folder ${folder} doesn't exist"
+    return 1
+  elif [ -f "${folder}/agent.sh" ]; then
+    source "${folder}/agent.sh"
+  else
+    unset $(export | grep ' SSH_' | awk '{print $3}' | cut -d '=' -f 1)
+  fi
 	export SSH_PROFILE="${1}"
 	ssh-check-agent
 	local fingerprints=$(ssh-add -l 2> /dev/null | awk '{print $2}')
@@ -154,6 +152,9 @@ ssh-fix-sock() {
     if [[ "${found}" == "true" ]]; then continue; fi
     rm -rf ${i%/*}
 	done
+  if [[ -n "${SSH_PROFILE}" ]] && [[ -f "${HOME}/.ssh/${SSH_PROFILE}/agent.sh" ]]; then
+    source ${HOME}/.ssh/${SSH_PROFILE}/agent.sh
+  fi
   export FWD_SSH_AUTH_SOCK="${socket}"
 }
 

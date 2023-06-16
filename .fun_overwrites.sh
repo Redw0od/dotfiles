@@ -5,8 +5,10 @@ _sources+=("$(basename ${_this})")
 ssh-git-account() {
   local account="${1}"
   case ${account} in
-    *andiant*|DDPMCP) ssh-load-keys mandiant;;
-    Redw0od) ssh-load-keys stanton;;
+    *andiant*|DDPMCP)
+      ssh-load-keys mandiant;;
+    Redw0od)
+      ssh-load-keys stanton;;
     *) ssh-load-keys mandiant;;
   esac
 }
