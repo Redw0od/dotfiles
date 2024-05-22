@@ -96,6 +96,23 @@ git-update-main () {
   done
 }
 
+# Update cached main branch for all repos in $GITHOME
+# git-status-report [$GITHOME]
+git-status-report () {
+  local git_dir="${1:-$GITHOME}"
+  for d in $(dirname $(find ${git_dir} -type d -name ".git" )); do
+    git-status "${d}" &
+  done
+}
+
+# Update cached main branch for specified repo
+# git-latest-main [git path]
+git-status () {
+  local git_dir=${1:-$(pwd)}
+
+    echo -e "\nRepo: ${git_dir}\n$(git-call "git status --short" "${git_dir}")\n"
+}
+
 # Find all repos owned by a user and clone them
 # git-clone-all <owner>
 git-clone-all () {

@@ -91,6 +91,7 @@ color[lightmagenta]=$(set-color 200)
 color[lightcyan]=$(set-color 87)
 color[lime_yellow]=$(set-color 190)
 color[powder_blue]=$(set-color 153)
+color[yellow_bg]=$(tput setab 3)
 if [[ "${COLOR_MODE}" == "dark" ]]; then
   color[orange]=$(set-color 202)
   color[blue]=$(set-color 33)
@@ -113,6 +114,7 @@ color[banner]=${color[gray]}
 color[bannertext]=${color[lightgray]}
 color[success]=${color[green]}
 color[warn]=${color[mustard]}
+color[warn_bg]=${color[yellow_bg]}
 color[info]=${color[teal]}
 color[error]=${color[red]}
 color[fail]=${color[red]}

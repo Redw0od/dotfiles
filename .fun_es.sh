@@ -142,7 +142,7 @@ es-create-apikey() {
 }
 
 # Curl POST Elasticsearch with User and Password
-# es-create-apikey-restricted <cluster> <user:pass> <json_policy> 
+# es-create-apikey-restricted <cluster> <user:pass> <json_policy>
 es-create-apikey-restricted() {
   local cluster="${1}"
   local auth="${2}"
@@ -153,7 +153,7 @@ es-create-apikey-restricted() {
 
 # Report list of clusters
 es-list-clusters() {
-  if [ -z "${ELASTIC[*]}" ]; then 
+  if [ -z "${ELASTIC[*]}" ]; then
     echo "No clusters loaded. Create array of clusters with:\n \
     declare -A ELASTIC\n    ELASITC[<CLUSTER_NAME>]=<URL>"
     return
@@ -165,12 +165,12 @@ es-list-clusters() {
 }
 
 # List users on cluster
-# es-list-users <cluster> 
+# es-list-users <cluster>
 es-list-users() {
   local cluster="${1}"
   local reserved="${2:-false}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
-  if [ ${reserved} != "false" ]; then 
+  if [ ${reserved} != "false" ]; then
     es-get ${cluster} /_security/user | jq -r 'keys[]'
   else
     es-get ${cluster} /_security/user | jq -r 'select(.metadata._reserved != true) | keys[]'
@@ -178,7 +178,7 @@ es-list-users() {
 }
 
 # List aliases on cluster, similar to list indices
-# es-list-aliases <cluster> 
+# es-list-aliases <cluster>
 es-list-aliases() {
   local cluster="${1}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -187,7 +187,7 @@ es-list-aliases() {
 }
 
 # List all indices on cluster
-# es-list-indices <cluster> 
+# es-list-indices <cluster>
 es-list-indices() {
   local cluster="${1}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -227,7 +227,7 @@ es-get-index-size() {
 }
 
 # Get index size in kilobytes
-# es-get-task <cluster> <task_id> 
+# es-get-task <cluster> <task_id>
 es-get-task() {
   local cluster="${1}"
   local task_id="${2}"
@@ -264,7 +264,7 @@ es-set-ilm-alias() {
   local cluster="${1}"
   local index="${2}"
   local alias="${3}"
-  local json='{  
+  local json='{
     "actions": [
     {
       "add": {
@@ -323,9 +323,9 @@ es-reduce-index() {
     echo -n "."
   done
   echo ""
-  es-set-ilm-alias "${cluster}" "${index_name}" "${index_alias}" 
+  es-set-ilm-alias "${cluster}" "${index_name}" "${index_alias}"
   es-set-ilm-date "${cluster}" "${index_name}" ${index_created}
-  if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then 
+  if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then
     for index in ${indicies[@]}; do
       es-delete-retry ${cluster} ${index}
     done
@@ -358,7 +358,7 @@ es-reduce-indicies() {
 
     echo ", size: ${index_size}, Creating New Index: "
     es-reduce-index "${cluster}" "${index}" &
-    while (( (( $(jobs -p | wc -l) )) >= 12 ));do 
+    while (( (( $(jobs -p | wc -l) )) >= 12 ));do
       echo -n "."
       sleep 120
     done
@@ -410,9 +410,9 @@ es-merge-indicies() {
     echo -n "."
   done
   echo ""
-  es-set-ilm-alias "${cluster}" "${index_name}" "${index_alias}" 
+  es-set-ilm-alias "${cluster}" "${index_name}" "${index_alias}"
   es-set-ilm-date "${cluster}" "${index_name}" ${index_created}
-  if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then 
+  if [[ -z "$(echo $result | jq '.failures[]' )" ]]; then
     for index in ${indicies[@]}; do
       es-delete-retry ${cluster} ${index}
     done
@@ -443,14 +443,14 @@ es-compact-index() {
     echo -n ", $((index_age/(24*60*60))) days old"
     index_size=$(es-get-index-size "${cluster}" "${index}")
 
-    if [ ${index_size} -gt ${max_size} ]; then 
+    if [ ${index_size} -gt ${max_size} ]; then
       echo ", OVERSIZED"
       reindex_size=0
       index_group=()
       continue
     fi
 
-    if [ $((index_size+reindex_size)) -gt ${max_size} ]; then 
+    if [ $((index_size+reindex_size)) -gt ${max_size} ]; then
       if [ ${#index_group[@]} -gt 1 ]; then
         echo ", size: ${index_size}, Creating New Index: , size:${reindex_size}"
         es-merge-indicies "${cluster}" "${index_group[*]}"
@@ -472,7 +472,7 @@ es-compact-index() {
 }
 
 # Report user account details
-# es-report-users <cluster> 
+# es-report-users <cluster>
 es-report-users() {
   local cluster="${1}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
@@ -489,7 +489,7 @@ es-report-users() {
     for var in "fullname" "email" "roles" "reserved"; do
       if [ "$(eval "echo \$${var}")" = "null" ]; then eval "${var}='-'"; fi
     done
-    printf "${fmt}" "${enabled}" "${reserved}" "${username}" "${fullname}" "${email}" "$(echo ${roles} | sed 's/ /,/g')" 
+    printf "${fmt}" "${enabled}" "${reserved}" "${username}" "${fullname}" "${email}" "$(echo ${roles} | sed 's/ /,/g')"
   done
 }
 
@@ -502,14 +502,14 @@ es-cluster-report() {
     echo "$(es-get ${cluster} /_cat/shards)"
   fi
   if [ "${query}" == "shardstats" ]; then
-    local shards=$(es-get ${cluster} /_cat/shards) 
+    local shards=$(es-get ${cluster} /_cat/shards)
     local fmt="%-15s %5s %9s %9s\n"
-    printf "${fmt}" "Action" "Total" "Primaries" "Replicas" 
+    printf "${fmt}" "Action" "Total" "Primaries" "Replicas"
     for i in "UNASSIGNED" "RELOCATING" "INITIALIZING"; do
       printf "${fmt}" "${i}" $(echo "${shards}" | grep ${i} | wc -l) $(echo "${shards}" | grep ${i}  | grep ' p '| wc -l) $(echo "${shards}" | grep ${i} | grep ' r ' | wc -l)
     done
     printf "${fmt}" "Total" $(echo "${shards}" | grep -v STARTED | wc -l) $(echo "${shards}" | grep -v STARTED | grep ' p '| wc -l) $(echo "${shards}" | grep -v STARTED | grep ' r '| wc -l)
-  
+
   fi
   if [ "${query}" == "nodes" ]; then
     echo "$(es-get ${cluster} '/_cat/nodes\?v=true\&h=name,cpu,heapPercent,ramPercent,ramCurrent,diskTotal,diskAvail')" | (read -r; printf "%s\n" "$REPLY"; sort)
@@ -518,7 +518,7 @@ es-cluster-report() {
 
 # Report master ES instance recognized by each node
 # es-query-master [nodes[@]]
-es-query-master() {  
+es-query-master() {
   local eKEY=$(echo -n "${API_LEGION}" | base64 | tr -d \\r)
   local nodes=${1}
   if [ ! -z "${nodes}" ]; then
@@ -530,7 +530,7 @@ es-query-master() {
       pkill kubectl  > /dev/null 2>&1
       sleep 1
     done
-  else 
+  else
     echo "nodes: $nodes"
   fi
 }
@@ -540,21 +540,21 @@ es-query-master() {
 es-get-template-names() {
   local cluster="${1}"
   local pattern="${2}"
-  es-get "${cluster}" "/_cat/templates/${pattern}" | awk '{print $1}' | sort -u 
+  es-get "${cluster}" "/_cat/templates/${pattern}" | awk '{print $1}' | sort -u
 }
 
 # Get a list of index templates that match a pattern
-# es-get-index-templates-names < CLUSTER_NAME > 
+# es-get-index-templates-names < CLUSTER_NAME >
 es-get-index-template-names() {
   local cluster="${1}"
-  es-get "${cluster}" "/_index_template" | jq -r '.index_templates[].name' | sort -u 
+  es-get "${cluster}" "/_index_template" | jq -r '.index_templates[].name' | sort -u
 }
 
 # Get a list of index templates that match a pattern
-# es-get-component-templates-names < CLUSTER_NAME > 
+# es-get-component-templates-names < CLUSTER_NAME >
 es-get-component-template-names() {
   local cluster="${1}"
-  es-get "${cluster}" "/_component_template" | jq -r '.component_templates[].name' | sort -u   
+  es-get "${cluster}" "/_component_template" | jq -r '.component_templates[].name' | sort -u
 }
 
 # Get a current template json
@@ -563,7 +563,7 @@ es-get-component-template-names() {
 es-get-template() {
   local cluster="${1}"
   local template="${2}"
-  es-get "${cluster}" "/_template/${template}"  
+  es-get "${cluster}" "/_template/${template}"
 }
 
 # Get a current template json
@@ -572,7 +572,7 @@ es-get-template() {
 es-get-index-template() {
   local cluster="${1}"
   local template="${2}"
-  es-get "${cluster}" "/_index_template/${template}" | jq -r '.index_templates[].index_template' 
+  es-get "${cluster}" "/_index_template/${template}" | jq -r '.index_templates[].index_template'
 }
 
 # Get a current template json
@@ -581,7 +581,7 @@ es-get-index-template() {
 es-get-component-template() {
   local cluster="${1}"
   local template="${2}"
-  es-get "${cluster}" "/_component_template/${template}" | jq -r '.component_templates[].component_template' 
+  es-get "${cluster}" "/_component_template/${template}" | jq -r '.component_templates[].component_template'
 }
 
 # Get a current templates lifecycle policy
@@ -645,7 +645,7 @@ es-get-role() {
   local role="${2}"
   if [ -z ${cluster} ]; then echo "Cluster Nickname Required."; return; fi
   if [ -z ${role} ]; then echo "Name of Role Required."; return; fi
-  es-get "${cluster}" "/_security/role/${role}" 
+  es-get "${cluster}" "/_security/role/${role}"
 }
 
 # Push Elasticsearch user role
@@ -702,7 +702,7 @@ es-create-user() {
 
 
 # Dump Elasticsearch configurations
-# es-dump-all-configs <cluster_nickname> <output_folder> 
+# es-dump-all-configs <cluster_nickname> <output_folder>
 es-dump-all-configs() {
   local cluster=${1}
   local folder=${2}
@@ -713,8 +713,8 @@ es-dump-all-configs() {
   mkdir -p "${folder}/ilm"
   for p in $(es-get ${cluster} /_ilm/policy | jq -r 'keys[]');do echo "ilm: $p";es-get "${cluster}" "/_ilm/policy/$p" > "${folder}/ilm/$p.json" ;done
   mkdir -p "${folder}/index_patterns"
-  for p in $(es-kb-get ${cluster} /api/saved_objects/_find?type=index-pattern | jq -r '.saved_objects[] | @base64');do 
-    title=$(echo "$p"| base64 --decode | jq -r .attributes.title); 
+  for p in $(es-kb-get ${cluster} /api/saved_objects/_find?type=index-pattern | jq -r '.saved_objects[] | @base64');do
+    title=$(echo "$p"| base64 --decode | jq -r .attributes.title);
     echo "index_pattern: ${title}"
     echo "$p" | base64 --decode | jq . > "${folder}/index_patterns/${title%\*}.json"
   done
@@ -727,7 +727,7 @@ es-dump-all-configs() {
 }
 
 # Push Elasticsearch index-patterns
-# es-put-index-pattern <cluster_nickname> <input_json_file> 
+# es-put-index-pattern <cluster_nickname> <input_json_file>
 es-put-index-pattern() {
   local cluster="${1}"
   local file="${2}"
@@ -757,7 +757,7 @@ es-put-index-pattern() {
 }
 
 # Push Elasticsearch legacy index-template
-# es-put-template <cluster_nickname> <input_json_file> 
+# es-put-template <cluster_nickname> <input_json_file>
 es-put-template() {
   local cluster="${1}"
   local file="${2}"
@@ -768,7 +768,7 @@ es-put-template() {
 }
 
 # Push Elasticsearch index-template
-# es-put-index-template <cluster_nickname> <input_json_file> 
+# es-put-index-template <cluster_nickname> <input_json_file>
 es-put-index-template() {
   local cluster="${1}"
   local file="${2}"
@@ -778,7 +778,7 @@ es-put-index-template() {
 }
 
 # Push Elasticsearch component-template
-# es-put-component-template <cluster_nickname> <input_json_file> 
+# es-put-component-template <cluster_nickname> <input_json_file>
 es-put-component-template() {
   local cluster="${1}"
   local file="${2}"
@@ -788,7 +788,7 @@ es-put-component-template() {
 }
 
 # Push Elasticsearch aliases after templates and ilm exists
-# es-put-alias <cluster_nickname> <alias> 
+# es-put-alias <cluster_nickname> <alias>
 es-put-alias() {
   local cluster="${1}"
   local alias="${2}"
@@ -801,11 +801,11 @@ es-put-alias() {
     echo "Index ${alias} name conflict."
     return
   fi
-  es-put "${cluster}" "/%3C${alias}-%7Bnow%2Fd%7D-000001%3E" "{\"aliases\":{\"${alias}\": {\"is_write_index\":\"true\"}}}"  
+  es-put "${cluster}" "/%3C${alias}-%7Bnow%2Fd%7D-000001%3E" "{\"aliases\":{\"${alias}\": {\"is_write_index\":\"true\"}}}"
 }
 
 # Push Elasticsearch Index Lifecycle Management
-# es-put-ilm <cluster_nickname> <input_json_file> 
+# es-put-ilm <cluster_nickname> <input_json_file>
 es-put-ilm() {
   local cluster="${1}"
   local file="${2}"
@@ -830,6 +830,16 @@ es-put-ilm() {
 #     "max_count": 5
 #   }
 # }
+
+# Update secrets file with new cluster IP
+# ees-update-dps <cluster_nickname>
+es-update-dps() {
+  local cluster="${1}"
+  local name="fic-mad-prod-$(lower ${cluster})-elasticsearch-db-c-1"
+  local ipaddress=$(aws-ec2-name ${name} | jq -r '.Reservations[].Instances[].PrivateIpAddress')
+  cat ${HOME}/.secrets.sh | sed "s/ELASTIC\[${cluster}\].*/ELASTIC\[${cluster}\]=\"https:\/\/${ipaddress}:9200\"/g" > ${HOME}/tmp/.secrets.sh
+  mv ${HOME}/tmp/.secrets.sh ${HOME}/.secrets.sh
+}
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then

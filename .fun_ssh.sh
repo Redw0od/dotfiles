@@ -137,7 +137,7 @@ ssh-fix-sock() {
   local found
 	for i in $(find /tmp/ssh-* -type s); do
     found="false"
-		if [[ -n "$(SSH_AUTH_SOCK=${i} ssh-add -l | grep 'corp/normal')" ]]; then
+		if [[ -n "$(SSH_AUTH_SOCK=${i} timeout 10s ssh-add -l | grep 'corp/normal')" ]]; then
 			socket=$i
       export SSH_AUTH_SOCK="${socket}"
       continue
@@ -155,7 +155,11 @@ ssh-fix-sock() {
   if [[ -n "${SSH_PROFILE}" ]] && [[ -f "${HOME}/.ssh/${SSH_PROFILE}/agent.sh" ]]; then
     source ${HOME}/.ssh/${SSH_PROFILE}/agent.sh
   fi
-  export FWD_SSH_AUTH_SOCK="${socket}"
+  if [[ -e "$HOME/.tmp/.${USER}.ssh_auth_sock" ]]; then
+    export FWD_SSH_AUTH_SOCK="$HOME/.tmp/.${USER}.ssh_auth_sock"
+  else
+    export FWD_SSH_AUTH_SOCK="${socket}"
+  fi
 }
 
 # Verify an ssh tunnel is listening by name

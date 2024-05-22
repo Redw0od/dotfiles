@@ -10,7 +10,7 @@ abbr='kube'
 common-help "${abbr}" "${_this}"
 
 # PS1 output for Kubernets Context
-kube-ps1-color () {
+kube-ps1-color() {
   case "${KUBE_ENV}" in
     gov)
       echo -e "${color[orange]}${KUBE_ENV}${color[default]}"
@@ -29,7 +29,7 @@ kube-ps1-color () {
 
 # Change kubernetes context and update session variables
 # kube-profile [cluster name]
-kube-profile () {
+kube-profile() {
   local cluster_name="${1}"
   export KUBECONFIG=${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml
   case "${cluster_name}" in
@@ -47,12 +47,12 @@ kube-profile () {
       ;;
    esac
    export KUBE_ENV="${cluster_name}"
-   echo "Current k8s Context: $(kubectl config current-context)" 
+   echo "Current k8s Context: $(kubectl config current-context)"
 }
 
 # Port forward rabbit-mq and display connection details
 # kube-forward-rabbit <k8s namespace> [k8s service name]
-kube-forward-rabbit () {
+kube-forward-rabbit() {
    local namespace=${1}
    local service=${2:-rabbitmq}
    echo "kubectl port-forward -n ${namespace} service/${service} 15672:15672"
@@ -61,21 +61,21 @@ kube-forward-rabbit () {
 }
 
 # Kill all port-forward sessions
-kube-stop () {
+kube-stop() {
    pkill kubectl
 }
 
 # Confirm all apply and deletes are against the correct cluster
 # kube-safe-apply <kubectl arguments>
-kube-safe-apply () {
+kube-safe-apply() {
   local proxy_setting=${PROXY}
-  if [[ " ${@} " =~ "apply" ]] || [[ " ${@} " =~ "delete" ]]; then 
-    echo -e -n "Running on cluster: ${color[black]}${color[yellow_bg]} $(upper $(kubectl config current-context)) ${color[default]}, "
+  if [[ " ${@} " =~ "apply" ]] || [[ " ${@} " =~ "delete" ]]; then
+    echo -e -n "Running on cluster: ${color[black]}${color[warn_bg]} $(upper $(kubectl config current-context)) ${color[default]}, "
     read -p "continue? (y/n) " CONFIRM
      [ ${CONFIRM} != "y" ] && echo "quit" && return
   fi
   #kubectl $*
-  if [[ "${CK8S_ALIAS}" == "legion" ]] || [[ "${CK8S_ALIAS}" == "mordin" ]] || [[ "${CK8S_ALIAS}" == "grunt" ]]; then 
+  if [[ "${CK8S_ALIAS}" == "legion" ]] || [[ "${CK8S_ALIAS}" == "mordin" ]] || [[ "${CK8S_ALIAS}" == "grunt" ]]; then
     proxy-set 10101
   fi
   kube-check-server-binary $*
@@ -84,10 +84,10 @@ kube-safe-apply () {
 
 # Change init container tag for all deployments in a namespace
 # kube-deploy-init-change <tag name> [namespace]
-kube-deploy-init-change () {
+kube-deploy-init-change() {
   local tag=${1}
   local namespace=${2:-default}
-  for d in $(kube-check-server-binary -n ${namespace} get deploy --no-headers | awk '{print $1}' ); do 
+  for d in $(kube-check-server-binary -n ${namespace} get deploy --no-headers | awk '{print $1}' ); do
     img=$(kube-check-server-binary -n ${namespace} get deploy/$d -o json | jq -er '.spec.template.spec.initContainers[].image' 2> /dev/null)
     if [ $? != 0 ]; then echo "${color[fail]}deploy/$d has no init container${color[default]}"; continue; fi
     kube-check-server-binary -n ${namespace} get deploy/$d -o json | jq ".spec.template.spec.initContainers[].image = \"${img%%:*}:${tag}\"" | kubectl apply -f -
@@ -96,7 +96,7 @@ kube-deploy-init-change () {
 
 # Report resource usage inside pod
 # kube-pod-top <pod name> [namespace] [container] [header bool]
-kube-pod-top () {  
+kube-pod-top() {
   local pod=${1}
   local namespace="${2:+"-n ${2}"}"
   local container="${3:+"-c ${3}"}"
@@ -104,22 +104,22 @@ kube-pod-top () {
   local fmt="%6s %5s %7s %-12s\n"
   if [ -z "${pod}" ]; then return 1; fi
   if [ -n "$(common-utilities 'kubectl' )" ]; then return 1; fi
-  if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi  
-  local top=$(kubectl ${namespace} exec "${pod}" ${container} -- top -b -n 1 2> /dev/null | grep -A 1 PID | grep -v PID) 
+  if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi
+  local top=$(kubectl ${namespace} exec "${pod}" ${container} -- top -b -n 1 2> /dev/null | grep -A 1 PID | grep -v PID)
   if [ $? != 0 ]; then echo "ERROR running top on ${namespace}:${pod}"; return; fi
   printf "$fmt" $(echo $top | awk '{print $9}') $(echo $top | awk '{print $10}')  $(echo $top | awk '{print $12}') ${pod}
 }
 
 # Report resource usage inside pods
 # kube-pods-top < "${PODS[@]}" > [namespace] [container] [header bool]
-kube-pods-top () {  
+kube-pods-top() {
   local pods=${1}
   local namespace=${2}
   local container=${3}
   local header="${4:-true}"
   local fmt="%6s %5s %7s %-12s\n"
   if [ -z "${pods}" ]; then return 1; fi
-  if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi  
+  if [ "${header}" == "true" ]; then printf "$fmt" "CPU" "Mem" "Process" "Node" ; fi
   for pod in ${pods}; do
     kube-pod-top ${pod} "${namespace}" "${container}" "false"
   done
@@ -127,7 +127,7 @@ kube-pods-top () {
 
 # Access kubernetes secret for elasticsearch api keys
 # kube-es-key <secret> [namespace]
-kube-es-key () {
+kube-es-key() {
   local keyname="${1}"
   local ns="-n ${2}"
   if [ -z "${keyname}" ]; then return 1; fi
@@ -139,7 +139,7 @@ kube-es-key () {
 
 # Append all kuberentes config files to KUBECONFIG env var
 # kube-config-all [path]
-kube-config-all () {
+kube-config-all() {
   local kube_path="${1:-${HOME}/.kube/}"
   for f in $(/bin/ls -a ${kube_path}); do
     if [[ -f ${kube_path}${f} ]] && [[ -z "$(echo ${KUBECONFIG} | sed 's/:/\n/g' | grep "^${f}$")" ]]; then
@@ -152,7 +152,7 @@ kube-config-all () {
 
 # Access kubernetes secret for elasticsearch user credentials
 # kube-es-creds [secret] [namespace]
-kube-es-creds () {
+kube-es-creds() {
   local keyname="${1}"
   local ns="-n ${2}"
   if [ -z "${keyname}" ]; then return 1; fi
@@ -163,10 +163,10 @@ kube-es-creds () {
 }
 
 # Check for new update to kubectl
-kube-check-binary () {
+kube-check-binary() {
   if [ -n "$(common-utilities 'kubectl' )" ]; then return 1; fi
   local version="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
-  local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt -m 5)"  
+  local latest="$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt -m 5)"
   if [[ "${version}" != "${latest}" ]]; then
     echo "New kubectl version available. Current: ${version}, Latest: ${latest}"
   fi
@@ -174,7 +174,7 @@ kube-check-binary () {
 
 # Compare default kubectl version to k8s server version
 # Then attempt to download and run commands on matching versions
-kube-check-server-binary () {
+kube-check-server-binary() {
   local server="$(kubectl --request-timeout=5s version -o json 2> /dev/null | jq -er '.serverVersion.gitVersion' | cut -d '-' -f 1)"
   if [ "${server}" = "null" ]; then echo "Failed to query server. Check VPN or reauthenticate.";return; fi
   local client="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
@@ -198,18 +198,20 @@ kube-check-server-binary () {
 }
 
 # Pass object json and strip out ephemeral details
-# echo jsonfile > kube-export
-kube-export () {
+# cat json_file > kube-export
+kube-export() {
   jq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.selfLink) | .metadata.creationTimestamp=null'
 }
 
-kube-export-yaml () {
-  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.annotations."kubectl.kubernetes.io/last-applied-configuration") | .metadata.creationTimestamp=null'
+# Pass object json and strip out ephemeral details
+# cat yaml_file > kube-export-yaml
+kube-export-yaml() {
+  yq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",.metadata.creationTimestamp,.metadata.generation,.status)'
 }
 
 # Decode base64 encoded values in .data object
 # kube-show-secret <namespace> <secret name>
-kube-show-secret () {
+kube-show-secret() {
   local namespace="${1}"
   local secret_name="${2}"
   kube-safe-apply -n "${namespace}" get secret "${secret_name}" -o json | jq -r '.data | map_values(@base64d)'
@@ -217,13 +219,18 @@ kube-show-secret () {
 
 # Get all pods over a specified number of days old
 # kube-list-old-pods [days]
-kube-list-old-pods () {
+kube-list-old-pods() {
   local days=${1:-0}
   local seniors=$(kubectl get pod --all-namespaces | awk 'match($6,/d/) {print $0}')
   local age=0
   IFS_BACKUP=$IFS; IFS=$'\n'
-  for pod in ${seniors[@]}; do 
+  for pod in ${seniors[@]}; do
     age=$(echo "${pod}" | awk '{print $6}' | cut -dd -f1)
+    if [[ -n "$(echo ${age} | grep 'y')" ]]; then
+      years=$(echo "${age}"  | cut -dy -f1)
+      days=$(echo "${age}"  | cut -dy -f2)
+      age=$(((years*365)+days))
+    fi
     if [ ${days} -lt ${age} ]; then
       echo "${pod}"
     fi
@@ -234,9 +241,9 @@ kube-list-old-pods () {
 # Take a list of pods and terminate them
 # kube-list-old-pods 6 | grep 'event\|resource' | kube-rollover-pods
 # kubectl get pods | kube-rollover-pods <namespace>
-kube-rollover-pods () {
+kube-rollover-pods() {
   local namespace="${1}"
-  local deathnote deathqueue pod 
+  local deathnote deathqueue pod
   local backup_ifs=$IFS
   IFS=$'\n'
   for list in $(cat - ); do

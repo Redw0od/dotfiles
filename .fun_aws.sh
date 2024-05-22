@@ -451,6 +451,33 @@ aws-check-binary() {
   fi
 }
 
+# List every region of the specified status in an account.
+# Default is ENABLED
+# aws-list-regions "DISABLED"
+aws-list-regions() {
+  local status="${1:-ENABLED}"
+  aws account list-regions --max-results 50 | jq -r '.Regions[] | select(.RegionOptStatus | contains("'${status}'"))| .RegionName' | sort -r
+}
+
+# List every region of the specified status in an account.
+# Default is ENABLED
+# aws-find-ip "127.0.0.1"
+aws-find-ip() {
+  local address="${1}"
+  local private public
+  if [ -z "${address}" ]; then return 1; fi
+  for region in $(aws-list-regions); do
+    echos "${region}"
+    public=$(aws ec2 describe-addresses --filters "Name=public-ip,Values=${address}" --region "${region}" | jq -r '.Addresses[]')
+    private=$(aws ec2 describe-network-interfaces --filters "Name=addresses.private-ip-address,Values=${address}" --region "${region}" | jq -r '.NetworkInterfaces[]')
+    if [ -n "${private}${public}" ]; then
+      echo "${private}${public}" | jq
+      return
+    fi
+  done
+  echo "IP address not found" >&2
+}
+
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"

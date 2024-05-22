@@ -175,7 +175,11 @@ curl-apikey() {
   if [ -z ${cURL} ]; then echo "need URL"; return 1;fi
   local H1="'Content-Type: application/json'"
   local H2="Authorization: ApiKey ${cAPI}"
+  if [ -z ${http_proxy} ]; then
   cmd "curl -sk ${cURL} -H ${H1} -H \"${H2}\""
+  else
+  cmd "curl -sk ${cURL} -H ${H1} -H \"${H2}\"" -x ${http_proxy}
+  fi
 }
 
 curl-user() {
