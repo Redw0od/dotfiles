@@ -109,7 +109,7 @@ mad-dump-arrays() {
 # Apply shell configurations by environment
 # mad-assume <environment> [-force]
 mad-assume() {
-	local name="$(echo ${1} | awk '{print toupper($0)}')"
+	local name="$(upper ${1})"
 	local force="${2}"
 	export MAD_PROFILE="${name}"
 	case "${name}" in
@@ -239,7 +239,7 @@ mad-derp-token() {
 		MORDIN) stage="dev" ;;
 		*) stage="${cluster}" ;;
 	esac
-	buildPass=$(vault read -format json -field password /${stage,,}/respond/secret/provisioner/buildUser | jq -r .)
+	buildPass=$(vault read -format json -field password /$(lower ${stage})/respond/secret/provisioner/buildUser | jq -r .)
 	curl-user "${PROVISIONING[${cluster}]}/api/event-tokens" "builduser:${buildPass}" "{ \"customerId\": \"${customer}\" }"
 	if [ "${VAULT_PROFILE}" != "${vprofile}" ]; then vault-profile ${vprofile}; fi
 }
@@ -276,7 +276,7 @@ mad-dockerfile-component() {
 }
 
 kt-set() {
-  local profile="$(echo ${1} | awk '{print toupper($0)}')"
+  local profile="$(upper ${1})"
 	echo '{"mode": "TLS-1way"}' > "${HOME}/kt_auth.json"
 	export KT_AUTH="${HOME}/kt_auth.json"
 	case "${profile}" in

@@ -2,8 +2,8 @@
 declare -a _sources
 
 sh_source () { 
-		eval 'script_source () { echo "${BASH_SOURCE[1]}"; }
-					script_origin () { echo "${BASH_SOURCE[*]}"; }' 
+	eval   'script_source () { echo "${BASH_SOURCE[1]}"; }
+			script_origin () { echo "${BASH_SOURCE[*]}"; }' 
 }
 
 sh_source
@@ -11,9 +11,8 @@ _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
 declare -a UTILITIES
-UTILITIES=("date" "basename" "expr" "date" "tty" "stty" "echo" "sed" "awk"
-"tail" "head" "less" "vim" "ps" "ping" "netstat" "shutdown" "tar"
-"openssl" "grep" )
+UTILITIES=("date" "tty" "basename" "eval" "sed" "awk" "mpstat"
+"tail" "vim" "grep" )
 
 #######################################################
 # SOURCED ALIAS'S AND SCRIPTS
@@ -31,7 +30,7 @@ elif [ -f /etc/bash_completion ]; then
 	source /etc/bash_completion
 fi
 
-if [ -f "${HOME}/.secrets.sh" ] ; then
+if [ -f "${HOME}/.secrets.sh" ]; then
 	source "${HOME}/.secrets.sh"
 fi
 
@@ -47,7 +46,6 @@ done
 if [ -f "${HOME}/.fun_overwrites.sh" ]; then
 	source "${HOME}/.fun_overwrites.sh"
 fi
-
 
 version-test "${BASH_VERSION%%(*}" gt '4.0.0'
 if [ $? = 1 ]; then
@@ -67,7 +65,6 @@ export NPM_TOKEN=${SECRET_NPM_TOKEN}
 export GITLAB_TOKEN=${NPM_TOKEN}
 export GITLAB_NPM_TOKEN=${NPM_TOKEN}
 export KUBECONFIG="${HOME}/.kube/conubectl:${HOME}/.kube/config/kubecfg.yaml"
-export TG_ROOT="${HOME}/git/platform/terraform-modules"
 export GOPATH="$HOME/go"
 export LAST_STATUS=0
 export DEBUG_LOG="${HOME}/tmp/debug.log"
@@ -90,18 +87,6 @@ PROMPT_COMMAND='history -a'
 
 # Allow ctrl-S for history navigation (with ctrl-R)
 stty -ixon
-
-
-#iatest=$(expr index "$-" i)
-# Disable the bell
-#if (( $iatest > 0 )); then bind "set bell-style visible"; fi
-
-# Ignore case on auto-completion
-# Note: bind used instead of sticking these in .inputrc
-#if (( $iatest > 0 )); then bind "set completion-ignore-case on"; fi
-
-# Show auto-completion list automatically, without double tab
-#if (( $iatest > 0 )); then bind "set show-all-if-ambiguous On"; fi
 
 # Set the default editor
 export EDITOR=vim
@@ -127,26 +112,72 @@ export LESS_TERMCAP_so=$'\E[01;44;33m'
 export LESS_TERMCAP_ue=$'\E[0m'
 export LESS_TERMCAP_us=$'\E[01;32m'
 
+if [ ! -d "$(basename "${DEBUG_LOG%/*}")" ]; then
+	mkdir -p "${DEBUG_LOG%/*}"
+fi
 exec {funlog}>"${DEBUG_LOG}"
-export funlog=$funlog
+export funlog=${funlog}
 if [ "${VERBOSE}" = "true" ]; then
-	echo "Loaded shell files:" >&$funlog
-	echo "${_sources[@]}" >&$funlog
+	echo "Loaded shell files:" >&${funlog}
+	echo "${_sources[@]}" >&${funlog}
 fi
 
 #######################################################
 # Set the ultimate amazing command prompt
 #######################################################
 
-#alias cpu="grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'"
-alias cpu='echo 10'
+cpu_usage_update() {
+	local idle="$(mpstat 1 1 | tail -n 1 | awk '{print $12}')"
+	local idlef=${idle#*\.}
+	# bash can't math with decimals or prefixed 0's.  ie. 08
+	if [ "${idlef}" -lt 10 ]; then idlef=${idlef:1:1}; fi
+	local usedf=$((100-${idlef}))
+	# restore prefix zero for decimal calculations
+	if [ "${usedf}" -lt 10 ]; then usedf="0${usedf}"; fi
+	echo "cpu: $((100-${idle%\.*})).${usedf}" > ${HOME}/.prompt
+	gcert_timeout_update
+}
+
+cpu_usage() {
+	grep 'cpu: ' ${HOME}/.prompt | awk '{print $2}'
+}
+
+gcert_timeout_update() {
+    local -i hours=0
+    local -i minutes=0
+    local -i expires=1200
+    local -i total_minutes=0
+    local -i expires_h=20
+    local -i expires_m=0
+    if [[ -z "(command -v gcertstatus)" ]]; then return;fi
+    while read; do
+        if [[ -n "$(echo ${REPLY} | grep WARNING)" ]]; then
+			echo "gcert: EXPIRED" >> ${HOME}/.prompt
+            return
+        fi
+        hours=$(echo ${REPLY} | awk '{print $4}' | sed 's/h//g')
+        minutes=$(echo ${REPLY} | awk '{print $5}' | sed 's/m//g')
+        total_minutes=$(((hours*60)+minutes))
+        if [[ ${expires} -gt ${total_minutes} ]]; then
+            expires=${total_minutes}
+            expires_h=${hours}
+            expires_m=${minutes}
+        fi
+    done <<<$(gcertstatus 2>&1)
+	echo "gcert: ${expires_h}h${expires_m}m" >> ${HOME}/.prompt
+}
+
+gcert_timeout() {
+	grep 'gcert: ' ${HOME}/.prompt | awk '{print $2}'
+}
+
 __setprompt () {
 	local LAST_COMMAND=$? # Must come first!
-
+	(cpu_usage_update &)
+	PS1="${color[default]}"
 	# Show error exit code if there is one
 	if [ $LAST_COMMAND != 0 ]; then
-		# PS1="\[${color[red]}\](\[${color[lightred]}\]ERROR\[${color[red]}\])-(\[${color[lightred]}\]Exit Code \[${color[white]}\]${LAST_COMMAND}\[${color[red]}\])-(\[${color[lightred]}\]"
-		PS1="${color[darkgray]}(${color[lightred]}ERROR${color[darkgray]})-(${color[red]}Exit Code ${color[lightred]}${LAST_COMMAND}${color[darkgray]})-(${color[red]}"
+		PS1+="${color[ps1param]}(${color[ps1errorval]}ERROR${color[ps1param]})-(${color[ps1error]}Exit Code ${color[ps1errorval]}${LAST_COMMAND}${color[ps1param]})-(${color[ps1error]}"
 		if [ $LAST_COMMAND == 1 ]; then
 			PS1+="General error"
 		elif [ $LAST_COMMAND == 2 ]; then
@@ -180,51 +211,55 @@ __setprompt () {
 		else
 			PS1+="Unknown error code"
 		fi
-		PS1+="${color[darkgray]})${color[default]}\n"
+		PS1+="${color[ps1param]})${color[default]}\n"
 	else
 		PS1=""
 	fi
 
 	# Date
-	PS1+="${color[darkgray]}($(set-color 196)$(date +%a) $(set-color 208)$(date +%b-'%-d')" # Date
-	PS1+=" $(set-color 220) $(date +'%-I':%M:%S%P)${color[darkgray]})-" # Time
+	PS1+="${color[ps1param]}(${color[ps1day]}$(date +%a) ${color[ps1date]}$(date +%b-'%-d')" # Date
+	PS1+=" ${color[ps1time]}$(date +'%-I':%M:%S%P)${color[ps1param]})${color[ps1dash]}-" # Time
 
 	# CPU
-	PS1+="($(set-color 112)CPU $(set-color 34)$(cpu)%"
+	PS1+="${color[ps1param]}(${color[ps1cpu]}CPU ${color[ps1cpuval]}$(cpu_usage)%"
+
+	# gcert
+	PS1+=" ${color[ps1job]}gcert${color[ps1param]}:${color[ps1jobval]}$(gcert_timeout)${color[ps1param]})${color[ps1dash]}-"
 
 	# Jobs
-	PS1+="${color[darkgray]}:${color[green]}\j"
+	# PS1+=" ${color[ps1job]}jobs${color[ps1param]}:${color[ps1jobval]}\j${color[ps1param]})${color[ps1dash]}-"
 
-	# Network Connections (for a server - comment out for non-server)
-	# PS1+="\[${color[darkgray]}\]:\[${color[green]}\]Net $(awk 'END {print NR}' /proc/net/tcp)"
+	# Proxy
+	PS1+="${color[ps1param]}(${color[ps1vault]}proxy${color[ps1bracket]}[${PROXY:-'-'}${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
-	PS1+="${color[darkgray]})-"
-	PS1+="($(set-color 24)vault${color[gray]}[$(vault-ps1-color)${color[gray]}]${color[darkgray]})-"
+	# Vault
+	PS1+="${color[ps1param]}(${color[ps1vault]}vault${color[ps1bracket]}[$(vault-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
-	PS1+="(${color[teal]}aws${color[gray]}[$(aws-ps1-color)${color[gray]}]${color[darkgray]})-"
+	# AWS
+	PS1+="${color[ps1param]}(${color[ps1aws]}aws${color[ps1bracket]}[$(aws-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
-	PS1+="(${color[blue]}kube${color[gray]}[$(kube-ps1-color)${color[gray]}]${color[darkgray]})-"
-
-	#PS1+="$(git-ps1-color)"
-
+	# Kubernetes
+	PS1+="${color[ps1param]}(${color[ps1kube]}⎈${color[ps1bracket]}[$(kube-ps1-color)${color[ps1bracket]}]${color[ps1param]})${color[ps1dash]}-"
 
 	# User and server
-	local SSH_IP=`echo $SSH_CLIENT | awk '{ print $1 }'`
-	local SSH2_IP=`echo $SSH2_CLIENT | awk '{ print $1 }'`
+	local SSH_IP=$(echo $SSH_CLIENT | awk '{ print $1 }')
+	local SSH2_IP=$(echo $SSH2_CLIENT | awk '{ print $1 }')
 	if [ $SSH2_IP ] || [ $SSH_IP ] ; then
-		PS1+="(${color[darkblue]}\u@\h"
+		PS1+="${color[ps1param]}(${color[ps1user]}\u@\h"
 	else
-		PS1+="(${color[darkblue]}\u"
+		PS1+="${color[ps1param]}(${color[ps1user]}\u"
 	fi
 
 	# Current directory
-	PS1+="${color[darkgray]}:${color[blue]}\w${color[darkgray]})-"
+	PS1+="${color[ps1param]}:${color[ps1dir]}\w${color[ps1param]})${color[ps1dash]}-${color[ps1param]}("
 
+	PS1+="$(ssh-ps1-tunnels)${color[ps1param]}):"
+	
 	# Total size of files in current directory
-	PS1+="(${color[burgandy]}$(\ls -lah | grep -m 1 total | sed 's/total //')${color[darkgray]}:"
+	#PS1+="${color[ps1param]}(${color[ps1size]}$(\ls -lah | grep -m 1 total | sed 's/total //')${color[ps1param]}:"
 
 	# Number of files
-	PS1+="${color[purple]}$(trim $(\ls -A -1 | wc -l ))${color[darkgray]})"
+	#PS1+="${color[ps1files]}$(trim $(\ls -A -1 | wc -l ))${color[ps1param]})"
 
 	# Skip to the next line
 	PS1+="${color[default]}\n"
@@ -236,13 +271,12 @@ __setprompt () {
 	fi
 
 	# PS2 is used to continue a command using the \ character
-	PS2="\[${color[darkgray]}\]>\[${color[default]}\] "
+	PS2="\[${color[ps1param]}\]>\[${color[default]}\] "
 
 	# PS3 is used to enter a number choice in a script
 	PS3='Please enter a number from above list: '
 
 	# PS4 is used for tracing a script in debug mode
-	PS4="${color[darkgray]}+${color[default]} "
+	PS4="${color[ps1param]}+${color[default]} "
 }
 PROMPT_COMMAND='__setprompt'
-

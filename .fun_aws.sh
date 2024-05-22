@@ -3,7 +3,7 @@ sh_source
 _this="$( script_source )"
 _sources+=("$(basename ${_this})")
 
-UTILITIES+=("aws" "echo" "awk" "grep" "date" "expr" "jq" "column" "base64" "cut" "rev" "sleep")
+UTILITIES+=("aws" "jq" "column" "base64" "expect" )
 abbr='aws'
 
 # Create help function for this file
@@ -16,19 +16,20 @@ aws-ps1-color() {
       echo -e "${color[red]}${BOLD}${AWS_PROFILE}${color[blue]}"
       ;;
     *stage*)
-      echo -e "${color[mustard]}${AWS_PROFILE}${color[blue]}"
-      ;;
-    *dev*)
       echo -e "${color[yellow]}${AWS_PROFILE}${color[blue]}"
       ;;
+    *dev*)
+      echo -e "${color[green]}${AWS_PROFILE}${color[blue]}"
+      ;;
     *)
-      echo -e "${color[orange]}${AWS_PROFILE}${color[blue]}"
+      echo -e "${color[white]}${AWS_PROFILE}${color[blue]}"
       ;;
   esac
 }
 
 # Copy AWS session details to temp file
 # Pass profile name as an argument
+# aws-save [AWS_PROFILE]
 aws-save() {
   local suffix="-${1:-$AWS_PROFILE}"
   local session_file="/tmp/aws-session${suffix}"
@@ -42,6 +43,7 @@ aws-save() {
 }
 
 # Load AWS session details from temp file
+# aws-load [AWS_PROFILE]
 aws-load() {
   local suffix="-${1:-$AWS_PROFILE}"
   local session_file="/tmp/aws-session${suffix}"
@@ -54,18 +56,17 @@ aws-session-time() {
 }
 
 # Loads aws profile and refreshes token if needed
-# Call function with aws profile name as arguemnt
+# aws-apply-profile [AWS_PROFILE] [-f]
 aws-apply-profile() {
   local role="${1:-$AWS_PROFILE}"
   local force="${2}"
-  echo "aws-apply-profile ${role} ${force}"
   aws-load ${role}
-  if [ "${force}" = "-f" ]; then 
+  if [ "${force}" = "-f" ]; then
     aws-expect ${role}
     aws-save ${role}
     return
   fi
-  if [ "$(aws sts get-caller-identity 2> /dev/null )" ] && [ $(aws-session-time) -gt 300 ]; then 
+  if [ "$(aws sts get-caller-identity 2> /dev/null )" ] && [ $(aws-session-time) -gt 300 ]; then
     echo "Session still valid for $(aws-session-time) seconds. Use -f to force refresh"
     return
   fi
@@ -73,9 +74,8 @@ aws-apply-profile() {
   aws-load ${role}
 }
 
-
 # Parse credentials file for role Arn of specific profile
-# Call function with aws profile name as argument
+# aws-extract-role-arn [AWS_PROFILE] [AWS_CRED_FILE]
 aws-extract-role-arn() {
   local profile="${1}"
   local cred_file=${2:-"$HOME/.aws/config"}
@@ -100,7 +100,7 @@ aws-extract-role-arn() {
 }
 
 # Parse config file for mfa serial Arn of specific profile
-# Call function with aws profile name as argument
+# aws-extract-role-arn [AWS_PROFILE] [AWS_CRED_FILE]
 aws-extract-mfa-arn() {
   local profile="${1}"
   local cred_file=${2:-"$HOME/.aws/config"}
@@ -125,6 +125,8 @@ aws-extract-mfa-arn() {
 }
 
 
+# Build expect script to provide MFA token when prompted
+# aws-expect [AWS_PROFILE]
 aws-expect() {
   local profile="${1}"
   local token_code="$(aws-mfa-token ${profile})"
@@ -152,13 +154,12 @@ aws-save ${profile}" > /tmp/expect_aws_token.sh
 
 
 # Load aws profile and export session variables
-# aws-assume-role <profile>
+# aws-assume-role  AWS_PROFILE]
 aws-assume-role() {
   local profile="${1}"
   local arn="$(aws-extract-role-arn ${profile})"
   local mfa="$(aws-extract-mfa-arn ${profile})"
   local token_code="$(aws-mfa-token ${profile})"
-
 
   echo "token: ${token_code}"
   mfa="${mfa:+"--serial-number ${mfa}"}"
@@ -175,7 +176,7 @@ aws-assume-role() {
 }
 
 # Generate MFA token and pass to awscli
-# aws-mfa-token <mfa profile>
+# aws-mfa-token [AWS_PROFILE]
 aws-mfa-token() {
   local profile="${1}"
   local token_code=""
@@ -196,9 +197,8 @@ aws-whoami() {
   echo "You are in account: ${alias} (${account}) as ${arn}"
 }
 
-
 # Report RDS cluster details
-# Call function with region as argument
+# aws-report-rds-clusters [AWS_REGION]
 aws-report-rds-clusters() {
   local region=${1:-us-west-2}
   aws rds describe-db-clusters --region ${region} 2> /dev/null | jq '.DBClusters[] | [ .DBClusterIdentifier, .Engine, .EngineVersion, .Status, .DBSubnetGroup ]'
@@ -232,7 +232,7 @@ aws-report-all-rds-clusters() {
 
 
 # Create RDS snapshot that create Tags for all settings
-# Call function with rds cluster name as arguement
+# aws-rds-snapshot <RDS_CLUSTER_NAME>
 aws-rds-snapshot() {
   declare -A tags=()
   local cluster_name="${1}"
@@ -242,7 +242,7 @@ aws-rds-snapshot() {
   tags+=([DBClusterParameterGroup]="$(echo $cluster_details | jq -r '.DBClusterParameterGroup')")
   tags+=([Status]="$(echo $cluster_details | jq -r '.Status')")
   tags+=([Engine]="$(echo $cluster_details | jq -r '.Engine')")
-  tags+=([EngineVersion]="$(echo $cluster_details | jq -r '.EngineVersion')")  
+  tags+=([EngineVersion]="$(echo $cluster_details | jq -r '.EngineVersion')")
   tags+=([KmsKeyId]="$(echo $cluster_details | jq -r '.KmsKeyId')")
   tags+=([IAMDatabaseAuthenticationEnabled]="$(echo $cluster_details | jq -r '.IAMDatabaseAuthenticationEnabled')")
   tags+=([AutoMinorVersionUpgrade]="$(echo $cluster_details | jq -r '.AutoMinorVersionUpgrade')")
@@ -259,7 +259,7 @@ aws-rds-snapshot() {
   tags+=([DBInstanceClass]="$(echo $writer_details | jq -r '.DBInstanceClass' )")
   local tag_line="["
 
-  for key in ${!tags[@]}; do 
+  for key in ${!tags[@]}; do
     tag_line="${tag_line} { \"Key\": \"${key}\", \"Value\": \"${tags[$key]}\" },"
   done
   tag_line="${tag_line:0:-1} ]"
@@ -294,6 +294,8 @@ aws-ecr-purge() {
   done
 }
 
+# List all ECR repositories in a region
+# aws-ecr-repositories [region]
 aws-ecr-repositories() {
   local region="${1:+"--region ${1}"}"
   aws ecr describe-repositories | jq -r '.repositories[] | [.repositoryName, .repositoryUri] | @tsv' | sort | column  -t -s$'\t' -n -
@@ -307,7 +309,7 @@ aws-ecr-repositories() {
 aws-dms-start-tasks() {
   aws-apply-profile
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi; export AWS_PAGER=""
-  for json in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[] | select(.Status != "running") |  [ .Status, .ReplicationTaskArn ] | @base64' ); do 
+  for json in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[] | select(.Status != "running") |  [ .Status, .ReplicationTaskArn ] | @base64' ); do
     local status="$(echo $json | base64 --decode | jq -r .[0])"
     local arn="$(echo $json | base64 --decode | jq -r .[1])"
     case $status in
@@ -326,16 +328,17 @@ aws-dms-start-tasks() {
 }
 
 # Delete all current assessment reports for DMS tasks
+# aws-dms-delete-reports <S3_BUCKET_NAME>
 aws-dms-delete-reports() {
   aws-apply-profile
   local bucket_name="${1}"
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
-  for ARN in $(aws dms describe-replication-task-assessment-runs | jq -r '.ReplicationTaskAssessmentRuns[].ReplicationTaskAssessmentRunArn'); do 
+  for ARN in $(aws dms describe-replication-task-assessment-runs | jq -r '.ReplicationTaskAssessmentRuns[].ReplicationTaskAssessmentRunArn'); do
     aws dms delete-replication-task-assessment-run --replication-task-assessment-run-arn $ARN &
     if [ ! -z "${bucket_name}" ]; then
       aws s3 rm s3://${bucket_name}/dms/$(echo $ARN | rev | cut -d":" -f1 | rev)
     fi
-  done  
+  done
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
 
@@ -343,9 +346,9 @@ aws-dms-delete-reports() {
 aws-dms-delete-endpoints() {
   aws-apply-profile
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
-  for ARN in $(aws dms describe-endpoints | jq -r '.Endpoints[].EndpointArn'); do 
+  for ARN in $(aws dms describe-endpoints | jq -r '.Endpoints[].EndpointArn'); do
     aws dms delete-endpoint --endpoint-arn $ARN > /dev/null &
-  done  
+  done
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
 
@@ -353,20 +356,20 @@ aws-dms-delete-endpoints() {
 aws-dms-delete-tasks() {
   aws-apply-profile
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
-  for ARN in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[].ReplicationTaskArn'); do 
-    ( aws dms stop-replication-task --replication-task-arn $ARN 2>&1 /dev/null 
+  for ARN in $(aws dms describe-replication-tasks | jq -r '.ReplicationTasks[].ReplicationTaskArn'); do
+    ( aws dms stop-replication-task --replication-task-arn $ARN 2>&1 /dev/null
       while [ "$(aws dms describe-replication-tasks --filters Name=replication-task-arn,Values=$ARN | jq -r '.ReplicationTasks[].Status')" != "stopped" ]; do
         sleep 10
       done
       aws dms delete-replication-task --replication-task-arn $ARN 2>&1 /dev/null ) &
-  done  
+  done
   if [ "${pager}" = unset ]; then unset AWS_PAGER ;fi
 }
 
 ######### EC2 Functions
 
 # Filter EC2 instances by name
-# aws-ec2-name some-name*
+# aws-ec2-name <some-name*>
 aws-ec2-name() {
   local name_filter="${1}"
   if [ "${AWS_PAGER-unset}" = unset ]; then pager="unset";fi;export AWS_PAGER=""
@@ -376,23 +379,23 @@ aws-ec2-name() {
 }
 
 # List VPC details by region
-# aws-list-vpcs region
+# aws-list-vpcs [region] [table]
 aws-list-vpcs() {
   local region="${1:+--region ${1}}"
   local format="${2:-table}"
   local vpcs vpc_object vpc
   local vpc_json="$(aws ec2 describe-vpcs ${region})"
   while read -r vpc; do
-    if [[ -n "$(echo ${vpc} | jq '.Tags[]' 2> /dev/null)" ]]; then 
+    if [[ -n "$(echo ${vpc} | jq '.Tags[]' 2> /dev/null)" ]]; then
       vpc_object=$(echo [${vpc}] | jq 'map({VpcId,CidrBlock,Name: (.Tags[]|select(.Key=="Name")|.Value)})')
     else
-      echo "No Tags" 
+      echo "No Tags"
       vpc_object=$(echo [${vpc}] | jq 'map({VpcId,CidrBlock})')
     fi
     vpcs="$(echo ${vpcs} | jq ". + ${vpc_object}")"
     vpcs="${vpcs:-$vpc_object}"
   done <<< "$(echo "${vpc_json}" | jq -c '.Vpcs[]')"
-  if [[ "${format}" == "table" ]]; then 
+  if [[ "${format}" == "table" ]]; then
     echo ${vpcs} | jq -r '.[]| [.VpcId, .CidrBlock, .Name] | @tsv' | column -t -s$'\t'
   else
     echo "${vpcs}"
@@ -400,7 +403,7 @@ aws-list-vpcs() {
 }
 
 # List Subnets details by region
-# aws-list-subnets region
+# aws-list-subnets [region]
 aws-list-subnets() {
   local region="${1:+--region ${1}}"
   local subnets vpc_id vpc2 subnet_json subnet_table
@@ -409,7 +412,7 @@ aws-list-subnets() {
     vpc_id=$(echo "${vpc}" | jq -r '.VpcId')
     vpc2=$(echo "${vpc}" | jq -r '. | .["VpcName"] = .Name | .["VpcCidrBlock"] = .CidrBlock | del(.CidrBlock, .Name)')
     subnet_json=$(aws ec2 describe-subnets --filter Name=vpc-id,Values=${vpc_id} ${region})
-    if [ "$(echo ${subnet_json} | jq '.Subnets[].Tags[]' 2> /dev/null)" ]; then 
+    if [ "$(echo ${subnet_json} | jq '.Subnets[].Tags[]' 2> /dev/null)" ]; then
       subnets="$(echo ${subnet_json} | jq "[.[]|map({SubnetId,AvailabilityZone,CidrBlock,Name: (.Tags[]|select(.Key==\"Name\")|.Value)})| .[] + ${vpc2}]")"
     else
       subnets="$(echo ${subnet_json} | jq "[.[]|map({SubnetId,AvailabilityZone,CidrBlock})| .[] + ${vpc2}]")"
@@ -424,7 +427,7 @@ aws-list-subnets() {
 # aws-list-secrets [region]
 aws-list-secrets() {
   local region="${1:+--region ${1}}"
-  aws secretsmanager list-secrets ${region} | jq -r '.SecretList[].Name' 
+  aws secretsmanager list-secrets ${region} | jq -r '.SecretList[].Name'
 }
 
 # List available secrets per region
@@ -432,19 +435,47 @@ aws-list-secrets() {
 aws-get-secret() {
   local secret="${1}"
   local region="${2:+--region ${2}}"
-  aws secretsmanager get-secret-value --secret-id ${secret} ${region} | jq -r '.SecretString' 
+  aws secretsmanager get-secret-value --secret-id ${secret} ${region} | jq -r '.SecretString'
 }
 
+# Check for aws cli updates
 aws-check-binary() {
   if [ -z "$(command -v aws)" ]; then
     echo "install awscli"
     return 1
   fi
   local version="$( aws --version | awk -F"[ \t/]+" '{print $2}')"
-  local latest="$(curl -s https://raw.githubusercontent.com/aws/aws-cli/v2/CHANGELOG.rst | head -n 5 | grep '^[0-9]')"  
+  local latest="$(curl -s https://raw.githubusercontent.com/aws/aws-cli/v2/CHANGELOG.rst | head -n 5 | grep '^[0-9]')"
   if [ "${version}" != "${latest}" ]; then
     echo "New awscli version available. Current: ${version}, Latest: ${latest}"
   fi
+}
+
+# List every region of the specified status in an account.
+# Default is ENABLED
+# aws-list-regions "DISABLED"
+aws-list-regions() {
+  local status="${1:-ENABLED}"
+  aws account list-regions --max-results 50 | jq -r '.Regions[] | select(.RegionOptStatus | contains("'${status}'"))| .RegionName' | sort -r
+}
+
+# List every region of the specified status in an account.
+# Default is ENABLED
+# aws-find-ip "127.0.0.1"
+aws-find-ip() {
+  local address="${1}"
+  local private public
+  if [ -z "${address}" ]; then return 1; fi
+  for region in $(aws-list-regions); do
+    echos "${region}"
+    public=$(aws ec2 describe-addresses --filters "Name=public-ip,Values=${address}" --region "${region}" | jq -r '.Addresses[]')
+    private=$(aws ec2 describe-network-interfaces --filters "Name=addresses.private-ip-address,Values=${address}" --region "${region}" | jq -r '.NetworkInterfaces[]')
+    if [ -n "${private}${public}" ]; then
+      echo "${private}${public}" | jq
+      return
+    fi
+  done
+  echo "IP address not found" >&2
 }
 
 # If you source this file directly, apply the overwrites.

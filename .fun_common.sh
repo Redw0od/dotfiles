@@ -26,7 +26,7 @@ common-utilities() {
 
 common-utility-check() {
 	local utility="${1}"
-	if [ -n "$(common-utility-status ${utility})" ]; then 
+	if [ -n "$(common-utility-status ${utility})" ]; then
 		echo "Missing command line utility: ${utility}"
 	fi
 }
@@ -51,7 +51,7 @@ common-help() {
       banner \" function: \$func \" \"\" \${color[banner]} \${color[help]}
       echo -e \"\${comment}\"
     fi
-    if [[ -n \"\$(echo \${line} | grep '^#')\" ]]; then 
+    if [[ -n \"\$(echo \${line} | grep '^#')\" ]]; then
       if [[ -z \"\${comment}\" ]]; then
         comment=\"\${line}\"
       else
@@ -65,12 +65,86 @@ common-help() {
 }"
 }
 
+# Set shell proxy by cluster
+# proxy-check
+proxy-check() {
+	local cluster=${1}
+	case "$(lower ${cluster})" in
+		prod)
+			echos "proxy-check prod"
+			proxy-set 10101;;
+		*)
+			echos "proxy-check default"
+			proxy-set 10100;;
+	esac
+}
+
+# Set shell proxy to value stored in $PROXY
+# proxy-restore
+proxy-restore() {
+	if [ -n "${PROXY}" ]; then
+		eval "${PROXY}"
+	fi
+}
+
+# Remove shell proxy settings
+# proxy-clear
+proxy-clear() {
+	unset https_proxy
+	unset HTTPS_PROXY
+	unset HTTP_PROXY
+	unset http_proxy
+	unset ALL_PROXY
+	unset PROXY
+}
+
+# Set shell proxy variables
+# proxy-set [port] [protocol]
+proxy-set() {
+	local port=${1:-10100}
+	local protocol=${2:-socks5}
+	echos "proxy-set ${protocol}://localhost:${port}"
+	export http_proxy=${protocol}://localhost:${port}
+	export HTTP_PROXY=${protocol}://localhost:${port}
+	export https_proxy=${protocol}://localhost:${port}
+	export HTTPS_PROXY=${protocol}://localhost:${port}
+	export ALL_PROXY=${protocol}://localhost:${port}
+}
+
+# Force string case to lower
+lower() {
+	local string=${1}
+	echo "${string}" | awk '{print tolower($0)}'
+}
+
+# Force string case to upper
+upper() {
+	local string=${1}
+	echo "${string}" | awk '{print toupper($0)}'
+}
+
 # Apply color to echo more ledgibly
 printc() {
 	local color_name="${1}"
 	local text="${2}"
 	local after_color="${3:-default}"
 	echo -en "${color[${color_name}]}${text}${color[${after_color}]}"
+}
+
+# Partially mask output of sensitive value
+mask() {
+	local secret="$1"
+	local show="${2:-5}"
+	if [[ ${show} -lt 0 ]] || [[ ${show} -gt ${#secret} ]]; then
+		err "Invalid value for unmasked portion"
+		return
+	fi
+	echo "${secret:0:$show}$(echo ${secret:$show} | sed 's/./\*/g')"
+}
+
+# Output error to stderr
+err() {
+  echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $*" >&2
 }
 
 array-unique() {
@@ -101,7 +175,11 @@ curl-apikey() {
   if [ -z ${cURL} ]; then echo "need URL"; return 1;fi
   local H1="'Content-Type: application/json'"
   local H2="Authorization: ApiKey ${cAPI}"
+  if [ -z ${http_proxy} ]; then
   cmd "curl -sk ${cURL} -H ${H1} -H \"${H2}\""
+  else
+  cmd "curl -sk ${cURL} -H ${H1} -H \"${H2}\"" -x ${http_proxy}
+  fi
 }
 
 curl-user() {
@@ -128,13 +206,14 @@ vpn-check-apikey() {
 		curl-apikey "${cURL}" "${cAPI}"
 		if [ ${LAST_STATUS} -eq 0 ]; then
 			return; fi
-		echo "VPN check failed, pausing script."
+		echo "VPN check failed <${LAST_STATUS}>, pausing script."
 		pause
 	done
 }
 
 pause() {
-	read -s -n 1 -p "Press any key to continue . . ."
+	echo "Press any key to continue . . ."
+	read -s -n 1
 	echo ""
 }
 
@@ -146,7 +225,7 @@ cmd() {
 	if [ ! "${wet}" = true ]; then
 		eval ${command}; fi
 	LAST_STATUS=$?
-	if [ ${LAST_STATUS} -eq 0 ]; then 
+	if [ ${LAST_STATUS} -eq 0 ]; then
 		return; fi
 	echos "{'ERROR': '${LAST_STATUS}'}"
 }
@@ -181,7 +260,7 @@ quick-test() {
 	#eval $(eval_test () { if [ "${test_condition}" ]; then echo "TRUE"; else echo "FALSE"; fi })
 	#eval_test
 	#unset eval_test
-	if [ ${test_condition} ]; then echo "TRUE"; else echo "FALSE"; fi 
+	if [ ${test_condition} ]; then echo "TRUE"; else echo "FALSE"; fi
 }
 
 # Generate randmon 32char string, takes length as argument
@@ -383,41 +462,6 @@ ver() {
 			;;
 	esac
 }
-
-# Automatically install the needed support files for this .bashrc file
-install-bashrc-support() {
-	local dtype
-	dtype=$(distribution)
-
-	case ${dtype} in
-		"redhat")
-			sudo yum install multitail tree 
-			;;
-		"suse")
-			sudo zypper install multitail
-			sudo zypper install tree
-			;;
-		"debian")
-			sudo apt-get install multitail tree net-tools
-			;;
-		"gentoo")
-			sudo emerge multitail
-			sudo emerge tree
-			;;
-		"mandriva")
-			sudo urpmi multitail
-			sudo urpmi tree
-			;;
-		"slackware")
-			echo "No install support for Slackware"
-			;;
-		*)
-			echo "Error: Unknown distribution"
-			return 1
-			;;
-	esac
-}
-
 # Show current network information
 netinfo() {
 	local dtype=$(distribution)
@@ -559,7 +603,7 @@ array-indices() {
 		eval "declare -n array_values=${array_name}"
 		for key in $(printf '%s\n' ${!array_values[@]} | sort ); do
 			printf "%s\n" "${key}"
-		done 
+		done
 	fi
 }
 

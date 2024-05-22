@@ -11,12 +11,12 @@ common-help "${abbr}" "${_this}"
 
 # PS1 output for Vault profile
 vault-ps1-color() {
-  case "${VAULT_PROFILE}" in
+  case $(lower "${VAULT_PROFILE}") in
     gov)
       echo -e "${ORANGE}${VAULT_PROFILE}${color[default]}"
       ;;
     test)
-      echo -e "${color[gray]}${VAULT_PROFILE}${color[default]}"
+      echo -e "${color[yellow]}${VAULT_PROFILE}${color[default]}"
       ;;
     *)
       echo -e "${color[red]}${BOLD}${VAULT_PROFILE}${color[default]}"
@@ -122,6 +122,8 @@ vault-sync() {
     vault-profile ${source_vault}
 }
 
+# Check for secret endpoint and enable if missing
+# vault-set-endpoint <Path for Endpoint> <Enpoint Engine Type>
 vault-set-endpoint() {
   local endpoint="${1}"
   local engine="${2}"
@@ -133,9 +135,9 @@ vault-set-endpoint() {
   fi
   vault-profile "${profile}"
   # Needs updated for older versions of vault < 1.0
-  if [[ -z "$( vault read -format=json /sys/mounts/${endpoint} 2>/dev/null | jq -r '.data.type' )" ]]; then
+  if [[ -z "$( v read -format=json /sys/mounts/${endpoint} 2>/dev/null | jq -r '.data.type' )" ]]; then
     echo "${color[warn]}MISSING:${color[default]} ${endpoint} ${engine}"
-    vault secrets enable -path=${endpoint} ${engine}
+    v secrets enable -path=${endpoint} ${engine}
   fi
   vault-profile "${original_profile}"
 }
@@ -143,7 +145,7 @@ vault-set-endpoint() {
 # Set Vault ENV variables per $VAULTS[?] index
 # vault-profile <profile_name>
 vault-profile() {
-  local profile="$(echo ${1} | awk '{print toupper($0)}')"
+  local profile="$(upper ${1})"
   export VAULT_ADDR="${VAULTS[${profile}]}"
   export VAULT_TOKEN="${TOKENS[${profile}]}"
   export VAULT_PROFILE="${profile}"
@@ -154,7 +156,7 @@ vault-profile() {
 vault-rds-lookup() {
   local key_path=${1:-respond}
   local env=${2:-prod}
-      rds_secret=$(vault read ${2}/${1}/secret/rds | awk /'password/ {print $2}' 2> /dev/null)
+      rds_secret=$(v read ${env}/${key_path}/secret/rds | awk /'password/ {print $2}' 2> /dev/null)
   echo "${rds_secret}"
 }
 
@@ -192,11 +194,13 @@ vault-debug-logs() {
   done
 }
 
+# Pull vault secrets and add values
+# vault-append-secret [full secret path] [key] [value]
 vault-append-secret() {
   local v_path="${1}"
   local v_key="${2}"
   local v_value="${3}"
-  local v_json="$(vault read -format json -field data ${v_path})"
+  local v_json="$(v read -format json -field data ${v_path})"
   local v_current="$(echo "${v_json}" | jq \"."${v_key}"\")"
   if [ -n "${v_current}" ] && [ "${v_current}" != "${v_value}" ]; then
     # echo "Overwriting existing secret key: ${v_key}"    
@@ -205,14 +209,14 @@ vault-append-secret() {
     #   echo "quit" 
     #   return
     # fi
-    echo "${v_json}" | jq ".${v_key} = \"${v_value}\"" | vault write ${v_path} -
+    echo "${v_json}" | jq ".${v_key} = \"${v_value}\"" | v write ${v_path} -
   fi
 }
 
 # Check for new update to vault
 vault-check-binary() {
   if [ -n "$(common-utilities 'vault' )" ]; then return 1; fi
-  local version="$(vault --version | awk '{print $2}')"
+  local version="$(vault version | awk '{print $2}')"
   local latest="$(brew info vault | grep stable | awk '{print $3}')"  
   if [ "${version}" != "v${latest}" ]; then
     echo "New vault version available. Current: ${version}, Latest: v${latest}"
@@ -223,32 +227,87 @@ vault-check-binary() {
 # vault-base64 </secret/path/>
 vault-base64() {
   local secret_path=${1:-"/usw2/respond/secret/elastic-logs"}
-  vault read -format json -field data "${secret_path}" | jq -r '. | map_values(@base64)'
+  v read -format json -field data "${secret_path}" | jq -r '. | map_values(@base64)'
 }
 
 
 # Compare default vault version to server version
 # Then attempt to download and run commands on matching versions
 vault-check-server-binary() {
-  local server="$(kubectl version -o json 2> /dev/null | jq -r '.serverVersion.gitVersion' | cut -d '-' -f 1)"
-  local client="$(kubectl version --client -o json | jq -r '.clientVersion.gitVersion')"
+  local server="$(vault status --tls-skip-verify -format=json | jq -r '.version' | cut -d+ -f1)"
+  local client="$(vault version | awk '{print $2}' | sed 's/v//' )"
+  local version
   if [ "${server}" != "${client}" ]; then
-    if [ ! "$(command -v kubectl${server})" ]; then
-      echo "Server version [${server}] mismatch client [${client}]"
-      wget -q -P /tmp/ https://storage.googleapis.com/kubernetes-release/release/${server}/bin/linux/amd64/kubectl
-      if [ -f "/tmp/kubectl" ]; then
-        chmod +x /tmp/kubectl
-        sudo mv /tmp/kubectl /usr/local/bin/kubectl${server}
+    if [ ! "$(command -v vault${server})" ]; then
+      wget -q -P /tmp/ https://releases.hashicorp.com/vault/${server}/vault_${server}_linux_amd64.zip
+      if [ -f "/tmp/vault_${server}_linux_amd64.zip" ]; then
+        unzip /tmp/vault_${server}_linux_amd64.zip -d /tmp
+        sudo mv /tmp/vault /usr/local/bin/vault${server}
       else
-        echo "Failed to download matching kubectl version. Using default"
-        kubectl $*
+        \vault $@
+        return
       fi
     fi
-    kubectl${server} $*
+    \vault${server} $@
   else
-    kubectl $*
+    \vault $@
   fi
 }
+
+# Apply proxy settings temporarily to run vault command
+# vault-proxy [subcommand] [addtional arguments]
+vault-proxy() {
+  case $(lower "${VAULT_PROFILE}") in
+    apse1|apse2|euw1) 
+      proxy-set 10101;;
+    *)
+      proxy-set 10100;;
+  esac
+  if [[ -f "${HOME}/vault-${VAULT_PROFILE}.pem" ]]; then
+    local subcommand=$1
+    shift
+    vault-check-server-binary ${subcommand} -ca-cert ${HOME}/vault-${VAULT_PROFILE}.pem $@ 
+  else
+    vault-check-server-binary $@ 
+  fi
+  if [ -n ${PROXY} ]; then
+    eval ${PROXY}
+  else
+    noproxy
+  fi
+}
+
+# Save the CA cert of a trusted host to a file
+# vault-pull-cert [file save path] [URI without protocol]
+vault-pull-cert() {
+  local filepath=${1:-${HOME}/vault-${VAULT_PROFILE}.pem}
+  local host=${2:-${VAULT_ADDR##*/}}
+  local cert=$(proxychains openssl s_client -showcerts \
+                    -connect ${host} \
+                    -servername ${host} </dev/null 2>/dev/null | \
+                    openssl x509 -outform pem)
+  if [[ -n "${cert}" ]]; then
+    echo -n "${cert}" > ${filepath}
+  fi
+}
+
+# Safely report your vault environment variables
+# vault-env
+vault-env() {
+  local varname varvalue
+  for e in $(env | grep VAULT); do
+    if [[ -n "$(echo $e | grep TOKEN)" ]]; then
+      varname=$(echo $e | cut -d= -f1)
+      varvalue=$(echo $e | cut -d= -f2 | sed 's/./\*/g')
+      echo "${varname}=${varvalue}"
+    else 
+      echo $e
+    fi
+  done
+}
+
+alias v='vault-proxy'
+alias vt='vault-profile'
 
 # If you source this file directly, apply the overwrites.
 if [ -z "$(echo "$(script_origin)" | grep -F "shrc" )" ] && [ -e "${HOME}/.fun_overwrites.sh" ]; then
